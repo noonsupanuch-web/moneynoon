@@ -461,7 +461,7 @@
             bgImage: '', 
             appName: 'การเงินที่ร่ำรวยของนุ่น ศุภนุช มะณีศรี (Noon Supanuch)', 
             appIcon: '',
-            gasUrl: 'https://script.google.com/macros/s/AKfycbw9jr-Jn34gfM5f7WzhKhWqByYk73nSyWPWI3B93LJVZ8PkTgA4z9Wl96RilXkor7nL/exec'
+            gasUrl: 'https://script.google.com/macros/s/AKfycbx1EJx0DtUCzMPXD7dTO2FbybeRLsbRSaQGxXzOVItByszxZ-LgyZWnjacsesIQzmCR/exec'
         };
         window.expenseChartInstance = null;
         
@@ -517,17 +517,20 @@
                     if (user) {
                         currentUser = user;
                         startDataSync();
+                    } else {
+                        hideLoading();
                     }
                 });
             } catch (error) {
                 console.error("Auth error:", error);
-                showToast("ไม่สามารถเชื่อมต่อระบบบัญชีได้", "error");
+                showToast("ใช้ระบบโหมดชั่วคราว (Offline)", "warning");
                 hideLoading();
+                setupLocalMock();
             }
         }
 
         function startDataSync() {
-            if (!currentUser) return;
+            if (!currentUser || !db) return;
             const uid = currentUser.uid;
 
             // 1. Sync User Settings & Wealth
@@ -536,7 +539,7 @@
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     if(data.wealth) window.wealthData = data.wealth;
-                    if(data.settings) window.settingsData = data.settings;
+                    if(data.settings) window.settingsData = { ...window.settingsData, ...data.settings };
                     if(data.goals) window.goalsData = data.goals;
                 }
                 applySettings();
@@ -545,6 +548,7 @@
                 updateSyncTime();
             }, (err) => {
                 console.error("Profile sync error:", err);
+                hideLoading();
             });
 
             // 2. Sync Transactions
@@ -568,53 +572,61 @@
 
         function updateSyncTime() {
             const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-            document.getElementById('sync-time').innerText = timeStr;
+            const syncEl = document.getElementById('sync-time');
+            if (syncEl) syncEl.innerText = timeStr;
         }
 
         // --- Expose functions to window for HTML handlers ---
         window.saveWealthData = async function() {
-            if(!currentUser) return showToast("กำลังเชื่อมต่อระบบ...", "error");
-            
             const savings = parseFloat(document.getElementById('input-savings').value) || 0;
             const assets = parseFloat(document.getElementById('input-assets').value) || 0;
             const liabilities = parseFloat(document.getElementById('input-liabilities').value) || 0;
 
-            const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid);
-            
-            try {
-                await setDoc(profileRef, { wealth: { savings, assets, liabilities } }, { merge: true });
-                showToast("อัปเดตฐานะการเงินเรียบร้อย", "success");
-                closeWealthModal();
-            } catch(e) {
-                showToast("เกิดข้อผิดพลาดในการบันทึก", "error");
-                console.error(e);
+            window.wealthData = { savings, assets, liabilities };
+
+            if(currentUser && db) {
+                const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid);
+                try {
+                    await setDoc(profileRef, { wealth: { savings, assets, liabilities } }, { merge: true });
+                    showToast("อัปเดตฐานะการเงินออนไลน์เรียบร้อย", "success");
+                } catch(e) {
+                    showToast("บันทึกในเครื่องเรียบร้อย", "success");
+                    console.error(e);
+                }
+            } else {
+                showToast("บันทึกในเครื่องเรียบร้อย", "success");
             }
+            window.updateUI();
+            closeWealthModal();
         };
 
         window.saveSettingsData = async function() {
-            if(!currentUser) return showToast("กำลังเชื่อมต่อระบบ...", "error");
-            
             const primaryColor = document.getElementById('input-color').value;
             const bgImage = document.getElementById('input-bg').value;
             const appName = document.getElementById('input-app-name').value || 'การเงินที่ร่ำรวยของนุ่น ศุภนุช มะณีศรี (Noon Supanuch)';
             const appIcon = document.getElementById('input-app-icon').value;
             const gasUrl = document.getElementById('input-gas-url').value;
 
-            const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid);
-            
-            try {
-                await setDoc(profileRef, { settings: { primaryColor, bgImage, appName, appIcon, gasUrl } }, { merge: true });
+            window.settingsData = { primaryColor, bgImage, appName, appIcon, gasUrl };
+            applySettings();
+
+            if(currentUser && db) {
+                const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid);
+                try {
+                    await setDoc(profileRef, { settings: { primaryColor, bgImage, appName, appIcon, gasUrl } }, { merge: true });
+                    showToast("บันทึกการตั้งค่าลง Cloud เรียบร้อย", "success");
+                } catch(e) {
+                    showToast("บันทึกการตั้งค่าเรียบร้อย", "success");
+                    console.error(e);
+                }
+            } else {
                 showToast("บันทึกการตั้งค่าเรียบร้อย", "success");
-                closeSettingsModal();
-            } catch(e) {
-                showToast("เกิดข้อผิดพลาดในการบันทึก", "error");
-                console.error(e);
             }
+            closeSettingsModal();
         };
 
         document.getElementById('transaction-form').addEventListener('submit', async function(e) {
             e.preventDefault();
-            if(!currentUser) return showToast("กำลังเชื่อมต่อระบบ...", "error");
 
             const type = document.getElementById('trans-type').value;
             const amount = parseFloat(document.getElementById('trans-amount').value);
@@ -628,33 +640,50 @@
 
             const newTx = { type, amount, categoryId, note, date, createdAt: Date.now() };
 
-            try {
-                const transRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions');
-                await addDoc(transRef, newTx);
-                
-                document.getElementById('trans-amount').value = '';
-                document.getElementById('trans-note').value = '';
-                showToast("บันทึกข้อมูลลง Cloud สำเร็จ", "success");
-            } catch(e) {
-                showToast("เกิดข้อผิดพลาดในการบันทึก", "error");
-                console.error(e);
+            if(currentUser && db) {
+                try {
+                    const transRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions');
+                    await addDoc(transRef, newTx);
+                    showToast("บันทึกข้อมูลลง Cloud สำเร็จ ✨", "success");
+                } catch(e) {
+                    console.error(e);
+                    newTx.dbId = Date.now().toString();
+                    window.transactions.unshift(newTx);
+                    window.updateUI();
+                    showToast("บันทึกข้อมูลเรียบร้อย", "success");
+                }
+            } else {
+                newTx.dbId = Date.now().toString();
+                window.transactions.unshift(newTx);
+                window.updateUI();
+                showToast("บันทึกข้อมูลเรียบร้อย", "success");
             }
+
+            document.getElementById('trans-amount').value = '';
+            document.getElementById('trans-note').value = '';
         });
 
         window.deleteTransaction = async function(dbId) {
-            if(!currentUser) return;
-            try {
-                const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions', dbId);
-                await deleteDoc(docRef);
+            if(currentUser && db) {
+                try {
+                    const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions', dbId);
+                    await deleteDoc(docRef);
+                    showToast("ลบรายการเรียบร้อย", "success");
+                } catch(e) {
+                    console.error(e);
+                    window.transactions = window.transactions.filter(t => t.dbId !== dbId);
+                    window.updateUI();
+                    showToast("ลบรายการแล้ว", "success");
+                }
+            } else {
+                window.transactions = window.transactions.filter(t => t.dbId !== dbId);
+                window.updateUI();
                 showToast("ลบรายการแล้ว", "success");
-            } catch(e) {
-                showToast("เกิดข้อผิดพลาดในการลบ", "error");
-                console.error(e);
             }
         };
 
         window.exportToGoogleSheets = async function() {
-            const defaultUrl = 'https://script.google.com/macros/s/AKfycbw9jr-Jn34gfM5f7WzhKhWqByYk73nSyWPWI3B93LJVZ8PkTgA4z9Wl96RilXkor7nL/exec';
+            const defaultUrl = 'https://script.google.com/macros/s/AKfycbx1EJx0DtUCzMPXD7dTO2FbybeRLsbRSaQGxXzOVItByszxZ-LgyZWnjacsesIQzmCR/exec';
             const url = window.settingsData.gasUrl || defaultUrl;
             
             if (!url) {
@@ -703,6 +732,7 @@
         // --- UI & Rendering Logic ---
         window.updateCategoryDropdown = function(type) {
             const select = document.getElementById('trans-category');
+            if(!select) return;
             select.innerHTML = '';
             window.categories[type].forEach(cat => {
                 const option = document.createElement('option');
@@ -717,11 +747,13 @@
             const btnExpense = document.getElementById('btn-expense');
             const btnIncome = document.getElementById('btn-income');
 
+            if(!btnExpense || !btnIncome) return;
+
             if (type === 'expense') {
                 btnExpense.className = "flex-1 py-2 rounded-lg font-medium text-sm transition-all bg-white text-rose-500 shadow-sm border border-gray-200";
                 btnIncome.className = "flex-1 py-2 rounded-lg font-medium text-sm transition-all text-gray-500 hover:text-gray-700 bg-transparent border border-transparent";
+                btnIncome.style.color = '';
             } else {
-                // Use dynamic primary color for income
                 btnIncome.className = "flex-1 py-2 rounded-lg font-medium text-sm transition-all bg-white shadow-sm border border-gray-200";
                 btnIncome.style.color = window.settingsData.primaryColor;
                 btnExpense.className = "flex-1 py-2 rounded-lg font-medium text-sm transition-all text-gray-500 hover:text-gray-700 bg-transparent border border-transparent";
@@ -738,6 +770,7 @@
 
         function renderGoals() {
             const listEl = document.getElementById('goals-list');
+            if(!listEl) return;
             listEl.innerHTML = '';
 
             if (!window.goalsData || window.goalsData.length === 0) {
@@ -781,8 +814,6 @@
         }
 
         window.saveGoalData = async function() {
-            if(!currentUser) return showToast("กำลังเชื่อมต่อระบบ...", "error");
-            
             const idInput = document.getElementById('input-goal-id').value;
             const name = document.getElementById('input-goal-name').value || 'เป้าหมายใหม่';
             const target = parseFloat(document.getElementById('input-goal-target').value) || 0;
@@ -793,13 +824,11 @@
             let currentGoals = window.goalsData ? [...window.goalsData] : [];
             
             if (idInput) {
-                // Update existing
                 const index = currentGoals.findIndex(g => g.id === idInput);
                 if(index > -1) {
                     currentGoals[index] = { ...currentGoals[index], name, target, current };
                 }
             } else {
-                // Create new
                 currentGoals.push({
                     id: Date.now().toString(),
                     name,
@@ -808,31 +837,41 @@
                 });
             }
 
-            const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid);
-            
-            try {
-                await setDoc(profileRef, { goals: currentGoals }, { merge: true });
+            window.goalsData = currentGoals;
+
+            if(currentUser && db) {
+                const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid);
+                try {
+                    await setDoc(profileRef, { goals: currentGoals }, { merge: true });
+                    showToast("บันทึกเป้าหมายลง Cloud เรียบร้อย", "success");
+                } catch(e) {
+                    showToast("บันทึกเป้าหมายเรียบร้อย", "success");
+                    console.error(e);
+                }
+            } else {
                 showToast("บันทึกเป้าหมายเรียบร้อย", "success");
-                closeGoalModal();
-            } catch(e) {
-                showToast("เกิดข้อผิดพลาดในการบันทึกเป้าหมาย", "error");
-                console.error(e);
             }
+            window.updateUI();
+            closeGoalModal();
         };
 
         window.deleteGoal = async function(goalId) {
-            if(!currentUser) return;
-            
             let currentGoals = window.goalsData.filter(g => g.id !== goalId);
-            const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid);
-            
-            try {
-                await setDoc(profileRef, { goals: currentGoals }, { merge: true });
+            window.goalsData = currentGoals;
+
+            if(currentUser && db) {
+                const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid);
+                try {
+                    await setDoc(profileRef, { goals: currentGoals }, { merge: true });
+                    showToast("ลบเป้าหมายแล้ว", "success");
+                } catch(e) {
+                    showToast("ลบเป้าหมายแล้ว", "success");
+                    console.error(e);
+                }
+            } else {
                 showToast("ลบเป้าหมายแล้ว", "success");
-            } catch(e) {
-                showToast("เกิดข้อผิดพลาดในการลบ", "error");
-                console.error(e);
             }
+            window.updateUI();
         };
 
         function calculateTotals() {
@@ -844,30 +883,34 @@
 
             const balance = totals.income - totals.expense;
             const { savings, assets, liabilities } = window.wealthData;
-            
-            // Net Worth = Cash Balance + Savings + Assets - Liabilities
             const netWorth = balance + savings + assets - liabilities;
 
-            // Update DOM
-            document.getElementById('total-balance').innerText = formatMoney(balance);
-            document.getElementById('total-balance').className = `text-2xl font-bold ${balance < 0 ? 'text-rose-500' : 'text-gray-900'}`;
+            const balEl = document.getElementById('total-balance');
+            if (balEl) {
+                balEl.innerText = formatMoney(balance);
+                balEl.className = `text-2xl font-bold ${balance < 0 ? 'text-rose-500' : 'text-gray-900'}`;
+            }
             
-            document.getElementById('display-savings').innerText = formatMoney(savings);
-            document.getElementById('display-assets').innerText = formatMoney(assets);
-            document.getElementById('display-liabilities').innerText = formatMoney(liabilities);
+            if(document.getElementById('display-savings')) document.getElementById('display-savings').innerText = formatMoney(savings);
+            if(document.getElementById('display-assets')) document.getElementById('display-assets').innerText = formatMoney(assets);
+            if(document.getElementById('display-liabilities')) document.getElementById('display-liabilities').innerText = formatMoney(liabilities);
             
-            document.getElementById('total-networth').innerText = formatMoney(netWorth);
-            if(netWorth < 0) {
-                document.getElementById('total-networth').classList.add('text-rose-400');
-                document.getElementById('total-networth').classList.remove('text-white');
-            } else {
-                document.getElementById('total-networth').classList.add('text-white');
-                document.getElementById('total-networth').classList.remove('text-rose-400');
+            const netEl = document.getElementById('total-networth');
+            if (netEl) {
+                netEl.innerText = formatMoney(netWorth);
+                if(netWorth < 0) {
+                    netEl.classList.add('text-rose-400');
+                    netEl.classList.remove('text-white');
+                } else {
+                    netEl.classList.add('text-white');
+                    netEl.classList.remove('text-rose-400');
+                }
             }
         }
 
         function renderTransactionList() {
             const listEl = document.getElementById('transaction-list');
+            if (!listEl) return;
             listEl.innerHTML = '';
             
             const filteredTx = filterTransactions(window.transactions);
@@ -876,14 +919,14 @@
                 listEl.innerHTML = `
                     <div class="flex flex-col items-center justify-center text-gray-400 py-10">
                         <i class="ph-fill ph-cloud-slash text-5xl mb-2 text-gray-300"></i>
-                        <p>ไม่มีข้อมูลในระบบคลาวด์</p>
+                        <p>ไม่มีข้อมูลรายการ</p>
                     </div>
                 `;
                 return;
             }
 
             filteredTx.forEach(t => {
-                const catDetails = window.categories[t.type].find(c => c.id === t.categoryId) || { name: 'Unknown', icon: 'ph-question', color: '#ccc' };
+                const catDetails = window.categories[t.type]?.find(c => c.id === t.categoryId) || { name: 'อื่นๆ', icon: 'ph-dots-three-circle', color: '#cbd5e1' };
                 const isIncome = t.type === 'income';
                 const amountColor = isIncome ? `style="color: ${window.settingsData.primaryColor}"` : 'class="text-gray-900"';
                 const sign = isIncome ? '+' : '-';
@@ -919,7 +962,8 @@
         }
 
         function filterTransactions(txList) {
-            const filterType = document.getElementById('chart-filter').value;
+            const filterSelect = document.getElementById('chart-filter');
+            const filterType = filterSelect ? filterSelect.value : 'all';
             if(filterType === 'all') return txList;
             
             const now = new Date();
@@ -935,14 +979,16 @@
         }
 
         function renderChart() {
-            const ctx = document.getElementById('expenseChart').getContext('2d');
+            const chartCanvas = document.getElementById('expenseChart');
+            if(!chartCanvas) return;
+            const ctx = chartCanvas.getContext('2d');
             const noDataEl = document.getElementById('no-chart-data');
             
             const filteredTx = filterTransactions(window.transactions);
             const expenses = filteredTx.filter(t => t.type === 'expense');
 
             if (expenses.length === 0) {
-                noDataEl.classList.remove('hidden');
+                if(noDataEl) noDataEl.classList.remove('hidden');
                 if (window.expenseChartInstance) {
                     window.expenseChartInstance.destroy();
                     window.expenseChartInstance = null;
@@ -950,7 +996,7 @@
                 return;
             }
 
-            noDataEl.classList.add('hidden');
+            if(noDataEl) noDataEl.classList.add('hidden');
 
             const dataMap = {};
             expenses.forEach(exp => {
@@ -1000,7 +1046,7 @@
             const bg = window.settingsData.bgImage;
             const appName = window.settingsData.appName || 'การเงินที่ร่ำรวยของนุ่น ศุภนุช มะณีศรี (Noon Supanuch)';
             const appIcon = window.settingsData.appIcon || '';
-            const gasUrl = window.settingsData.gasUrl || 'https://script.google.com/macros/s/AKfycbw9jr-Jn34gfM5f7WzhKhWqByYk73nSyWPWI3B93LJVZ8PkTgA4z9Wl96RilXkor7nL/exec';
+            const gasUrl = window.settingsData.gasUrl || 'https://script.google.com/macros/s/AKfycbx1EJx0DtUCzMPXD7dTO2FbybeRLsbRSaQGxXzOVItByszxZ-LgyZWnjacsesIQzmCR/exec';
             
             root.style.setProperty('--color-primary', primary);
             
@@ -1010,32 +1056,32 @@
                 root.style.setProperty('--bg-image', 'linear-gradient(135deg, #fff1eb 0%, #ace0f9 100%)');
             }
 
-            // Sync inputs
-            document.getElementById('input-color').value = primary;
-            document.getElementById('input-color-hex').value = primary;
-            document.getElementById('input-bg').value = bg || '';
-            document.getElementById('input-app-name').value = appName;
-            document.getElementById('input-app-icon').value = appIcon;
-            document.getElementById('input-gas-url').value = gasUrl;
+            if (document.getElementById('input-color')) document.getElementById('input-color').value = primary;
+            if (document.getElementById('input-color-hex')) document.getElementById('input-color-hex').value = primary;
+            if (document.getElementById('input-bg')) document.getElementById('input-bg').value = bg || '';
+            if (document.getElementById('input-app-name')) document.getElementById('input-app-name').value = appName;
+            if (document.getElementById('input-app-icon')) document.getElementById('input-app-icon').value = appIcon;
+            if (document.getElementById('input-gas-url')) document.getElementById('input-gas-url').value = gasUrl;
 
-            // Apply Name & Icon
-            document.getElementById('display-app-name').innerText = appName;
+            if (document.getElementById('display-app-name')) document.getElementById('display-app-name').innerText = appName;
             document.title = appName;
 
             const defaultIcon = document.getElementById('default-app-icon');
             const customIcon = document.getElementById('custom-app-icon');
             
-            if(appIcon && appIcon.trim() !== '') {
-                customIcon.src = appIcon;
-                customIcon.classList.remove('hidden');
-                defaultIcon.classList.add('hidden');
-            } else {
-                customIcon.classList.add('hidden');
-                defaultIcon.classList.remove('hidden');
+            if(customIcon && defaultIcon) {
+                if(appIcon && appIcon.trim() !== '') {
+                    customIcon.src = appIcon;
+                    customIcon.classList.remove('hidden');
+                    defaultIcon.classList.add('hidden');
+                } else {
+                    customIcon.classList.add('hidden');
+                    defaultIcon.classList.remove('hidden');
+                }
             }
             
-            // Re-run setup functions that depend on colors
-            window.setTransactionType(document.getElementById('trans-type').value);
+            const transTypeEl = document.getElementById('trans-type');
+            if (transTypeEl) window.setTransactionType(transTypeEl.value);
         }
 
         function hideLoading() {
@@ -1047,9 +1093,9 @@
         }
 
         function setupLocalMock() {
-            // Fallback if no firebase config provided by environment
             window.updateUI();
             applySettings();
+            updateSyncTime();
         }
 
     </script>
