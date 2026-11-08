@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MeeTung - ระบบบริหารการเงินส่วนตัว</title>
-    <!-- สถานะ: สมบูรณ์ 100% เชื่อมต่อ Cloud, ระบบล็อครหัสผ่าน, และ Google Sheets (Auto-Sync) -->
+    <!-- สถานะ: สมบูรณ์ 100% เชื่อมต่อ Cloud, ระบบล็อครหัสผ่าน, และล็อกเป้าหมาย Google Sheets -->
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -53,7 +53,6 @@
             transition: background 0.3s ease;
         }
         
-        /* Glassmorphism for main containers */
         .glass-panel {
             background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(16px);
@@ -61,7 +60,6 @@
             box-shadow: 0 8px 32px rgba(244, 114, 182, 0.15);
         }
         
-        /* Custom Scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
         }
@@ -94,6 +92,11 @@
         #loading-overlay {
             transition: opacity 0.5s ease;
         }
+        
+        .focus-ring-primary:focus {
+            --tw-ring-color: var(--color-primary);
+            border-color: var(--color-primary);
+        }
     </style>
 </head>
 <body class="text-gray-800 antialiased p-4 md:p-8">
@@ -121,7 +124,7 @@
     <!-- Loading Overlay -->
     <div id="loading-overlay" class="fixed inset-0 bg-white z-[100] flex flex-col items-center justify-center">
         <i class="ph-duotone ph-spinner-gap text-6xl text-primary animate-spin mb-4"></i>
-        <p class="text-gray-500 font-medium">กำลังเชื่อมต่อระบบออนไลน์...</p>
+        <p class="text-gray-500 font-medium">กำลังเชื่อมต่อระบบออนไลน์ (Online Only)...</p>
     </div>
 
     <div class="max-w-7xl mx-auto">
@@ -135,13 +138,12 @@
                 <div class="min-w-0 flex-1">
                     <h1 class="text-lg md:text-2xl font-bold text-gray-900 leading-snug flex flex-wrap items-center gap-2">
                         <span id="display-app-name" class="break-words line-clamp-2">การเงินที่ร่ำรวยของนุ่น ศุภนุช มะณีศรี (Noon Supanuch)</span> 
-                        <span class="text-[10px] md:text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium shrink-0 flex items-center gap-1" title="เชื่อมต่อข้อมูลตรงกันทุกเครื่องแบบเรียลไทม์"><span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span></span> Live Sync</span>
+                        <span class="text-[10px] md:text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium shrink-0 flex items-center gap-1" title="เชื่อมต่อข้อมูลตรงกันทุกเครื่องแบบเรียลไทม์"><span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span></span> Online Sync</span>
                     </h1>
                     <p class="text-xs md:text-sm text-gray-500 mt-0.5">บริหารความมั่งคั่งและการเงิน</p>
                 </div>
             </div>
             <div class="flex gap-2 shrink-0">
-                <!-- นำปุ่มส่งออก Excel ออก เพื่อใช้งาน Auto-Sync อัตโนมัติ -->
                 <button onclick="openWealthModal()" class="w-10 h-10 md:w-12 md:h-12 bg-white hover:bg-gray-50 text-gray-700 rounded-xl shadow-sm transition-colors border border-gray-100 flex items-center justify-center tooltip-btn" title="อัปเดตทรัพย์สิน/หนี้สิน">
                     <i class="ph-fill ph-piggy-bank text-xl md:text-2xl"></i>
                 </button>
@@ -153,7 +155,6 @@
 
         <!-- Net Worth & Wealth Cards -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <!-- Net Worth (Main) -->
             <div class="md:col-span-4 rounded-3xl p-6 text-white shadow-2xl relative overflow-hidden flex items-center justify-between border border-pink-200/50" style="background: linear-gradient(135deg, var(--color-primary) 0%, #fb7185 100%);">
                 <div class="absolute -right-10 -top-20 opacity-20">
                     <i class="ph-fill ph-crown text-[200px]"></i>
@@ -171,25 +172,21 @@
                 </div>
             </div>
 
-            <!-- Cash Flow Balance -->
             <div class="glass-panel rounded-2xl p-5 shadow-sm border border-white/50">
                 <p class="text-gray-500 text-sm font-medium mb-1">กระแสเงินสด (รับ-จ่าย)</p>
                 <h3 class="text-2xl font-bold text-gray-900" id="total-balance">฿0.00</h3>
             </div>
             
-            <!-- Savings -->
             <div class="glass-panel rounded-2xl p-5 shadow-sm border border-white/50">
                 <p class="text-gray-500 text-sm font-medium mb-1">เงินเก็บ (Savings)</p>
                 <h3 class="text-2xl font-bold text-blue-600" id="display-savings">฿0.00</h3>
             </div>
 
-            <!-- Assets -->
             <div class="glass-panel rounded-2xl p-5 shadow-sm border border-white/50">
                 <p class="text-gray-500 text-sm font-medium mb-1">ทรัพย์สิน (Assets)</p>
                 <h3 class="text-2xl font-bold text-emerald-600" id="display-assets">฿0.00</h3>
             </div>
 
-            <!-- Liabilities -->
             <div class="glass-panel rounded-2xl p-5 shadow-sm border border-white/50">
                 <p class="text-gray-500 text-sm font-medium mb-1">หนี้สิน (Liabilities)</p>
                 <h3 class="text-2xl font-bold text-rose-500" id="display-liabilities">฿0.00</h3>
@@ -198,7 +195,6 @@
 
         <!-- Main Layout -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
             <!-- Left: Add Transaction Form -->
             <div class="glass-panel rounded-3xl p-6 md:p-8 shadow-sm border border-white/50 h-fit sticky top-4">
                 <h3 class="text-xl font-bold mb-6 flex items-center gap-2">
@@ -206,7 +202,6 @@
                 </h3>
                 
                 <form id="transaction-form" class="space-y-5">
-                    <!-- Type Selection -->
                     <div class="flex p-1 bg-gray-100 rounded-xl">
                         <button type="button" id="btn-expense" class="flex-1 py-2 rounded-lg font-medium text-sm transition-all bg-white text-rose-500 shadow-sm border border-gray-200" onclick="setTransactionType('expense')">
                             รายจ่าย
@@ -218,7 +213,6 @@
                     
                     <input type="hidden" id="trans-type" value="expense">
 
-                    <!-- Amount -->
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">จำนวนเงิน (บาท)</label>
                         <div class="relative">
@@ -229,35 +223,30 @@
                         </div>
                     </div>
 
-                    <!-- Category -->
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่</label>
                         <select id="trans-category" required class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:outline-none transition-all bg-white focus-ring-primary">
-                            <!-- Options will be populated by JS -->
                         </select>
                     </div>
 
-                    <!-- Note -->
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">บันทึกเพิ่มเติม</label>
                         <input type="text" id="trans-note" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:outline-none transition-all focus-ring-primary" placeholder="เช่น ค่าอาหาร, เงินเดือน...">
                     </div>
 
-                    <!-- Date -->
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">วันที่</label>
                         <input type="date" id="trans-date" required class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:outline-none transition-all text-gray-700 focus-ring-primary">
                     </div>
 
                     <button type="submit" class="w-full py-4 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 hover:opacity-90" style="background-color: var(--color-primary)">
-                        <i class="ph-bold ph-floppy-disk"></i> บันทึกข้อมูลลง Cloud
+                        <i class="ph-bold ph-floppy-disk"></i> บันทึกข้อมูลลง Cloud & ชีต
                     </button>
                 </form>
             </div>
 
             <!-- Right: Chart & History -->
             <div class="lg:col-span-2 space-y-8">
-                
                 <!-- Goals Section -->
                 <div class="glass-panel rounded-3xl p-6 shadow-sm border border-white/50">
                     <div class="flex items-center justify-between mb-6">
@@ -268,9 +257,7 @@
                             <i class="ph-bold ph-plus"></i> เพิ่มเป้าหมาย
                         </button>
                     </div>
-                    <div id="goals-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <!-- Goals will be injected here -->
-                    </div>
+                    <div id="goals-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
                 </div>
 
                 <!-- Chart Section -->
@@ -300,12 +287,8 @@
                             <i class="ph-fill ph-clock-counter-clockwise" style="color: var(--color-primary)"></i> ประวัติรายการ (Cloud)
                         </h3>
                     </div>
-                    
-                    <div class="overflow-y-auto max-h-[500px] pr-2 space-y-3" id="transaction-list">
-                        <!-- Transactions will be injected here -->
-                    </div>
+                    <div class="overflow-y-auto max-h-[500px] pr-2 space-y-3" id="transaction-list"></div>
                 </div>
-
             </div>
         </div>
     </div>
@@ -384,7 +367,6 @@
             </div>
             
             <div class="space-y-5">
-                <!-- App Name & Icon -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อแอป (App Name)</label>
                     <input type="text" id="input-app-name" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 outline-none transition-all focus-ring-primary text-sm" placeholder="ชื่อแอปของคุณ">
@@ -403,16 +385,15 @@
 
                 <hr class="border-gray-100 my-4">
 
-                <!-- Theme Color -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">สีธีมหลัก (Primary Color)</label>
                     <div class="flex gap-3 mb-2">
-                        <button onclick="document.getElementById('input-color').value = '#f472b6'" class="w-8 h-8 rounded-full bg-[#f472b6] shadow-sm border border-gray-200" title="Rose Pink"></button>
-                        <button onclick="document.getElementById('input-color').value = '#fb7185'" class="w-8 h-8 rounded-full bg-[#fb7185] shadow-sm border border-gray-200" title="Coral"></button>
-                        <button onclick="document.getElementById('input-color').value = '#e879f9'" class="w-8 h-8 rounded-full bg-[#e879f9] shadow-sm border border-gray-200" title="Fuchsia"></button>
-                        <button onclick="document.getElementById('input-color').value = '#c084fc'" class="w-8 h-8 rounded-full bg-[#c084fc] shadow-sm border border-gray-200" title="Lavender"></button>
-                        <button onclick="document.getElementById('input-color').value = '#fdba74'" class="w-8 h-8 rounded-full bg-[#fdba74] shadow-sm border border-gray-200" title="Peach"></button>
-                        <button onclick="document.getElementById('input-color').value = '#2dd4bf'" class="w-8 h-8 rounded-full bg-[#2dd4bf] shadow-sm border border-gray-200" title="Mint"></button>
+                        <button onclick="document.getElementById('input-color').value = '#f472b6'; document.getElementById('input-color').dispatchEvent(new Event('input'))" class="w-8 h-8 rounded-full bg-[#f472b6] shadow-sm border border-gray-200" title="Rose Pink"></button>
+                        <button onclick="document.getElementById('input-color').value = '#fb7185'; document.getElementById('input-color').dispatchEvent(new Event('input'))" class="w-8 h-8 rounded-full bg-[#fb7185] shadow-sm border border-gray-200" title="Coral"></button>
+                        <button onclick="document.getElementById('input-color').value = '#e879f9'; document.getElementById('input-color').dispatchEvent(new Event('input'))" class="w-8 h-8 rounded-full bg-[#e879f9] shadow-sm border border-gray-200" title="Fuchsia"></button>
+                        <button onclick="document.getElementById('input-color').value = '#c084fc'; document.getElementById('input-color').dispatchEvent(new Event('input'))" class="w-8 h-8 rounded-full bg-[#c084fc] shadow-sm border border-gray-200" title="Lavender"></button>
+                        <button onclick="document.getElementById('input-color').value = '#fdba74'; document.getElementById('input-color').dispatchEvent(new Event('input'))" class="w-8 h-8 rounded-full bg-[#fdba74] shadow-sm border border-gray-200" title="Peach"></button>
+                        <button onclick="document.getElementById('input-color').value = '#2dd4bf'; document.getElementById('input-color').dispatchEvent(new Event('input'))" class="w-8 h-8 rounded-full bg-[#2dd4bf] shadow-sm border border-gray-200" title="Mint"></button>
                     </div>
                     <div class="flex gap-2">
                         <input type="color" id="input-color" class="h-10 w-10 rounded cursor-pointer border-0 p-0">
@@ -420,7 +401,6 @@
                     </div>
                 </div>
 
-                <!-- Background Image -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">รูปภาพพื้นหลัง (Background)</label>
                     <div class="flex gap-2">
@@ -431,15 +411,6 @@
                         </label>
                     </div>
                     <p class="text-xs text-gray-500 mt-1">เว้นว่างไว้หากต้องการใช้สีพื้นหลังปกติ</p>
-                </div>
-
-                <hr class="border-gray-100 my-4">
-
-                <!-- Google Sheets Sync -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1"><i class="ph-fill ph-google-logo text-emerald-500"></i> Google Sheets Web App URL</label>
-                    <input type="text" id="input-gas-url" class="w-full px-4 py-3 rounded-xl border border-emerald-200 focus:ring-2 outline-none transition-all focus:ring-emerald-400 focus:border-emerald-400 text-sm bg-emerald-50/50" placeholder="https://script.google.com/macros/s/......./exec">
-                    <p class="text-xs text-gray-500 mt-1">ใส่ URL จาก Google Apps Script เพื่อใช้ซิงค์ข้อมูล (Auto-Sync)</p>
                 </div>
                 
                 <button onclick="saveSettingsData()" class="w-full py-4 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all mt-6" style="background-color: var(--color-primary)">
@@ -458,26 +429,23 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global Setup
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'meetung-online';
         
         let app, db, auth;
         let currentUser = null;
         
-        // App State
         window.transactions = [];
         window.wealthData = { savings: 0, assets: 0, liabilities: 0 };
         window.goalsData = [];
+        // ลบ gasUrl ออกจาก Setting เพื่อป้องกันการแก้ไข บังคับใช้ค่าคงที่เท่านั้น
         window.settingsData = { 
             primaryColor: '#f472b6', 
             bgImage: '', 
             appName: 'การเงินที่ร่ำรวยของนุ่น ศุภนุช มะณีศรี (Noon Supanuch)', 
-            appIcon: '',
-            gasUrl: 'https://script.google.com/macros/s/AKfycbxX5Dar-_fnwsTHUGVi8o0TpPbESLHIO-aiGwdJwNhOx2Mr7ZCIWuiocphH4Rlf3l3R/exec'
+            appIcon: ''
         };
         window.expenseChartInstance = null;
         
-        // Categories
         window.categories = {
             expense: [
                 { id: 'food', name: 'อาหาร & คาเฟ่ 🍰', icon: 'ph-coffee', color: '#fb923c' },
@@ -500,29 +468,13 @@
             ]
         };
 
-        // Initialize Firebase safely
         async function initFirebaseApp() {
             try {
-                if (typeof __firebase_config === 'undefined' || !__firebase_config) {
-                    throw new Error("ไม่พบการเชื่อมต่อ Cloud (ทำงานในโหมดออฟไลน์)");
-                }
-                
-                let config;
-                try {
-                    config = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
-                } catch(parseErr) {
-                    throw new Error("การตั้งค่า Cloud ไม่ถูกต้อง");
-                }
-                
-                if(Object.keys(config).length === 0) {
-                    throw new Error("ไม่ได้กำหนดค่า Cloud Storage");
-                }
-
+                let config = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
                 app = initializeApp(config);
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
-                // ตรวจสอบ Token ก่อนเพื่อความปลอดภัยสูงสุดตามกฎ
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
@@ -533,26 +485,18 @@
                     if (user) {
                         currentUser = user;
                         startDataSync();
-                    } else {
-                        hideLoading();
-                        setupLocalMock();
                     }
                 });
             } catch(e) {
-                console.warn("Offline fallback mode:", e.message);
-                showToast("ทำงานในโหมดบันทึกลงเครื่อง: " + e.message, "warning");
-                hideLoading();
-                setupLocalMock();
+                console.error("Online mode required:", e.message);
             }
         }
 
-        // เริ่มรันระบบเชื่อมต่อออนไลน์
         initFirebaseApp();
 
         function startDataSync() {
             if (!currentUser || !db) return;
 
-            // 1. Sync User Settings & Wealth (ข้อมูลส่วนตัวและตั้งค่าแบบส่วนกลาง แชร์ทุกอุปกรณ์)
             const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
             onSnapshot(profileRef, (docSnap) => {
                 if (docSnap.exists()) {
@@ -565,12 +509,8 @@
                 window.updateUI();
                 hideLoading();
                 updateSyncTime();
-            }, (err) => {
-                console.error("Profile sync error:", err);
-                hideLoading();
             });
 
-            // 2. Sync Transactions (ซิงค์รายการรับ-จ่ายแบบเรียลไทม์ แชร์ทุกอุปกรณ์)
             const transRef = collection(db, 'artifacts', appId, 'public', 'data', 'noon_transactions');
             onSnapshot(transRef, (snapshot) => {
                 const loadedTrans = [];
@@ -578,14 +518,11 @@
                     loadedTrans.push({ dbId: doc.id, ...doc.data() });
                 });
                 
-                // Sort newest first
                 loadedTrans.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
                 window.transactions = loadedTrans;
                 
                 window.updateUI();
                 updateSyncTime();
-            }, (err) => {
-                console.error("Transactions sync error:", err);
             });
         }
 
@@ -595,15 +532,12 @@
             const syncIcon = document.getElementById('sync-icon');
             
             if (syncEl) syncEl.innerText = timeStr;
-            
-            // ทำให้ไอคอนหมุนนิดหน่อยเวลาซิงค์
             if (syncIcon) {
                 syncIcon.classList.add('animate-spin');
                 setTimeout(() => syncIcon.classList.remove('animate-spin'), 1000);
             }
         }
 
-        // --- Expose functions to window for HTML handlers ---
         window.saveWealthData = async function() {
             const savings = parseFloat(document.getElementById('input-savings').value) || 0;
             const assets = parseFloat(document.getElementById('input-assets').value) || 0;
@@ -613,19 +547,10 @@
 
             if(currentUser && db) {
                 const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
-                try {
-                    await setDoc(profileRef, { wealth: { savings, assets, liabilities } }, { merge: true });
-                    showToast("อัปเดตฐานะการเงินออนไลน์เรียบร้อย", "success");
-                } catch(e) {
-                    showToast("บันทึกในเครื่องเรียบร้อย", "success");
-                    console.error(e);
-                }
-            } else {
-                showToast("บันทึกในเครื่องเรียบร้อย", "success");
+                await setDoc(profileRef, { wealth: { savings, assets, liabilities } }, { merge: true });
             }
             window.updateUI();
             closeWealthModal();
-            // Auto-Sync ไป Google Sheets แบบเงียบๆ
             window.exportToGoogleSheets(true); 
         };
 
@@ -634,22 +559,14 @@
             const bgImage = document.getElementById('input-bg').value;
             const appName = document.getElementById('input-app-name').value || 'การเงินที่ร่ำรวยของนุ่น ศุภนุช มะณีศรี (Noon Supanuch)';
             const appIcon = document.getElementById('input-app-icon').value;
-            const gasUrl = document.getElementById('input-gas-url').value;
 
-            window.settingsData = { primaryColor, bgImage, appName, appIcon, gasUrl };
+            window.settingsData = { primaryColor, bgImage, appName, appIcon };
             applySettings();
 
             if(currentUser && db) {
                 const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
-                try {
-                    await setDoc(profileRef, { settings: { primaryColor, bgImage, appName, appIcon, gasUrl } }, { merge: true });
-                    showToast("บันทึกการตั้งค่าลง Cloud เรียบร้อย", "success");
-                } catch(e) {
-                    showToast("บันทึกการตั้งค่าเรียบร้อย", "success");
-                    console.error(e);
-                }
-            } else {
-                showToast("บันทึกการตั้งค่าเรียบร้อย", "success");
+                await setDoc(profileRef, { settings: { primaryColor, bgImage, appName, appIcon } }, { merge: true });
+                showToast("บันทึกการตั้งค่าลง Cloud เรียบร้อย", "success");
             }
             closeSettingsModal();
         };
@@ -663,73 +580,36 @@
             const note = document.getElementById('trans-note').value || '';
             const date = document.getElementById('trans-date').value;
 
-            if (isNaN(amount) || amount <= 0) {
-                return showToast("กรุณาระบุจำนวนเงินให้ถูกต้อง", "error");
-            }
+            if (isNaN(amount) || amount <= 0) return showToast("กรุณาระบุจำนวนเงินให้ถูกต้อง", "error");
 
             const newTx = { type, amount, categoryId, note, date, createdAt: Date.now() };
 
             if(currentUser && db) {
-                try {
-                    const transRef = collection(db, 'artifacts', appId, 'public', 'data', 'noon_transactions');
-                    await addDoc(transRef, newTx);
-                    showToast("บันทึกข้อมูลลง Cloud สำเร็จ ✨", "success");
-                } catch(e) {
-                    console.error(e);
-                    newTx.dbId = Date.now().toString();
-                    window.transactions.unshift(newTx);
-                    window.updateUI();
-                    showToast("บันทึกข้อมูลเรียบร้อย", "success");
-                }
-            } else {
-                newTx.dbId = Date.now().toString();
-                window.transactions.unshift(newTx);
-                window.updateUI();
-                showToast("บันทึกข้อมูลเรียบร้อย", "success");
+                const transRef = collection(db, 'artifacts', appId, 'public', 'data', 'noon_transactions');
+                await addDoc(transRef, newTx);
+                showToast("บันทึกข้อมูลลง Cloud & ชีตสำเร็จ ✨", "success");
             }
 
             document.getElementById('trans-amount').value = '';
             document.getElementById('trans-note').value = '';
             
-            // Auto-Sync ไป Google Sheets แบบเงียบๆ
             window.exportToGoogleSheets(true);
         });
 
         window.deleteTransaction = async function(dbId) {
             if(currentUser && db) {
-                try {
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'noon_transactions', dbId);
-                    await deleteDoc(docRef);
-                    showToast("ลบรายการจาก Cloud เรียบร้อย", "success");
-                } catch(e) {
-                    console.error(e);
-                    window.transactions = window.transactions.filter(t => t.dbId !== dbId);
-                    window.updateUI();
-                    showToast("ลบรายการแล้ว", "success");
-                }
-            } else {
-                window.transactions = window.transactions.filter(t => t.dbId !== dbId);
-                window.updateUI();
-                showToast("ลบรายการแล้ว", "success");
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'noon_transactions', dbId);
+                await deleteDoc(docRef);
+                showToast("ลบรายการเรียบร้อย", "success");
             }
-            // Auto-Sync ไป Google Sheets แบบเงียบๆ
             window.exportToGoogleSheets(true);
         };
 
-        // ฟังก์ชัน Auto-Sync ไปยัง Google Sheets
+        // ฟังก์ชัน Auto-Sync ล็อกเป้าหมายลง Google Sheets 
         window.exportToGoogleSheets = async function(silent = false) {
-            const defaultUrl = 'https://script.google.com/macros/s/AKfycbxX5Dar-_fnwsTHUGVi8o0TpPbESLHIO-aiGwdJwNhOx2Mr7ZCIWuiocphH4Rlf3l3R/exec';
-            const url = (window.settingsData && window.settingsData.gasUrl) ? window.settingsData.gasUrl : defaultUrl;
+            // ล็อกเป้าหมายห้ามเปลี่ยนแปลงเด็ดขาด
+            const TARGET_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxX5Dar-_fnwsTHUGVi8o0TpPbESLHIO-aiGwdJwNhOx2Mr7ZCIWuiocphH4Rlf3l3R/exec';
             
-            if (!url) {
-                if(!silent) openSettingsModal();
-                if(!silent) showToast("กรุณาใส่ Web App URL ของ Google Sheets ที่หน้าตั้งค่าก่อนครับ", "warning");
-                return;
-            }
-            
-            if(!silent) showToast("กำลังซิงค์ข้อมูลกับ Google Sheets... ⏳", "success");
-            
-            // แปลงรหัสหมวดหมู่เป็นชื่อหมวดหมู่ภาษาไทย
             const getCatName = (type, id) => {
                 const list = window.categories[type] || [];
                 const cat = list.find(c => c.id === id);
@@ -752,21 +632,17 @@
             };
 
             try {
-                // ส่งข้อมูลออนไลน์โดยใช้โหมด no-cors เพื่อทะลุกำแพงความปลอดภัย Google
-                await fetch(url, {
+                await fetch(TARGET_SHEET_URL, {
                     method: 'POST',
                     mode: 'no-cors',
                     headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify(payload)
                 });
-                if(!silent) showToast("ซิงค์ข้อมูลกับ Google Sheets สำเร็จ! 🎉", "success");
             } catch(e) {
-                if(!silent) showToast("เกิดข้อผิดพลาดในการซิงค์ข้อมูล โปรดตรวจสอบอินเทอร์เน็ต", "error");
-                console.error(e);
+                console.error("Sheet sync error", e);
             }
         };
 
-        // --- UI & Rendering Logic ---
         window.updateCategoryDropdown = function(type) {
             const select = document.getElementById('trans-category');
             if(!select) return;
@@ -866,32 +742,17 @@
                     currentGoals[index] = { ...currentGoals[index], name, target, current };
                 }
             } else {
-                currentGoals.push({
-                    id: Date.now().toString(),
-                    name,
-                    target,
-                    current
-                });
+                currentGoals.push({ id: Date.now().toString(), name, target, current });
             }
 
             window.goalsData = currentGoals;
 
             if(currentUser && db) {
                 const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
-                try {
-                    await setDoc(profileRef, { goals: currentGoals }, { merge: true });
-                    showToast("บันทึกเป้าหมายลง Cloud เรียบร้อย", "success");
-                } catch(e) {
-                    showToast("บันทึกเป้าหมายเรียบร้อย", "success");
-                    console.error(e);
-                }
-            } else {
-                showToast("บันทึกเป้าหมายเรียบร้อย", "success");
+                await setDoc(profileRef, { goals: currentGoals }, { merge: true });
             }
             window.updateUI();
             closeGoalModal();
-            
-            // Auto-Sync ไป Google Sheets แบบเงียบๆ
             window.exportToGoogleSheets(true);
         };
 
@@ -901,19 +762,9 @@
 
             if(currentUser && db) {
                 const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
-                try {
-                    await setDoc(profileRef, { goals: currentGoals }, { merge: true });
-                    showToast("ลบเป้าหมายแล้ว", "success");
-                } catch(e) {
-                    showToast("ลบเป้าหมายแล้ว", "success");
-                    console.error(e);
-                }
-            } else {
-                showToast("ลบเป้าหมายแล้ว", "success");
+                await setDoc(profileRef, { goals: currentGoals }, { merge: true });
             }
             window.updateUI();
-            
-            // Auto-Sync ไป Google Sheets แบบเงียบๆ
             window.exportToGoogleSheets(true);
         };
 
@@ -1089,7 +940,6 @@
             const bg = window.settingsData.bgImage;
             const appName = window.settingsData.appName || 'การเงินที่ร่ำรวยของนุ่น ศุภนุช มะณีศรี (Noon Supanuch)';
             const appIcon = window.settingsData.appIcon || '';
-            const gasUrl = window.settingsData.gasUrl || 'https://script.google.com/macros/s/AKfycbxX5Dar-_fnwsTHUGVi8o0TpPbESLHIO-aiGwdJwNhOx2Mr7ZCIWuiocphH4Rlf3l3R/exec';
             
             root.style.setProperty('--color-primary', primary);
             
@@ -1104,7 +954,6 @@
             if (document.getElementById('input-bg')) document.getElementById('input-bg').value = bg || '';
             if (document.getElementById('input-app-name')) document.getElementById('input-app-name').value = appName;
             if (document.getElementById('input-app-icon')) document.getElementById('input-app-icon').value = appIcon;
-            if (document.getElementById('input-gas-url')) document.getElementById('input-gas-url').value = gasUrl;
 
             if (document.getElementById('display-app-name')) document.getElementById('display-app-name').innerText = appName;
             document.title = appName;
@@ -1134,26 +983,15 @@
                 setTimeout(() => loader.remove(), 500);
             }
         }
-
-        function setupLocalMock() {
-            window.updateUI();
-            applySettings();
-            updateSyncTime();
-        }
-
     </script>
 
     <script>
-        // Non-module helpers
-        
         window.onload = () => {
-            // Check Login State
             if (sessionStorage.getItem('meetung_logged_in') === 'true') {
                 const overlay = document.getElementById('login-overlay');
                 if (overlay) overlay.remove();
             }
 
-            // Allow Enter key for password
             const pwdInput = document.getElementById('app-password');
             if (pwdInput) {
                 pwdInput.addEventListener('keypress', function (e) {
@@ -1164,13 +1002,11 @@
             document.getElementById('trans-date').valueAsDate = new Date();
             window.updateCategoryDropdown('expense');
             
-            // Input color listener
             document.getElementById('input-color').addEventListener('input', function(e) {
                 document.getElementById('input-color-hex').value = e.target.value;
-                document.documentElement.style.setProperty('--color-primary', e.target.value); // พรีวิวสีทันที
+                document.documentElement.style.setProperty('--color-primary', e.target.value);
             });
 
-            // Instant App Icon Preview from URL input
             document.getElementById('input-app-icon').addEventListener('input', function(e) {
                 const url = e.target.value;
                 const defaultIcon = document.getElementById('default-app-icon');
@@ -1187,7 +1023,6 @@
                 }
             });
 
-            // Instant Background Preview from URL input
             document.getElementById('input-bg').addEventListener('input', function(e) {
                 const url = e.target.value;
                 if (url && url.trim() !== '') {
@@ -1207,7 +1042,7 @@
                     overlay.style.opacity = '0';
                     setTimeout(() => overlay.remove(), 500);
                 }
-                showToast("เข้าสู่ระบบสำเร็จ! ยินดีต้อนรับค่ะ 💖", "success");
+                showToast("เข้าสู่ระบบสำเร็จ! 💖", "success");
             } else {
                 showToast("รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่", "error");
                 document.getElementById('app-password').value = '';
@@ -1237,7 +1072,6 @@
             }, 3000);
         }
 
-        // Modals
         function openWealthModal() {
             const m = document.getElementById('wealth-modal');
             const mc = document.getElementById('wealth-modal-content');
@@ -1246,7 +1080,6 @@
             document.getElementById('input-liabilities').value = window.wealthData.liabilities || '';
             
             m.classList.remove('hidden');
-            // animate in
             requestAnimationFrame(() => {
                 m.classList.remove('opacity-0');
                 mc.classList.remove('scale-95');
@@ -1312,7 +1145,6 @@
                     let width = img.width;
                     let height = img.height;
 
-                    // ย่อขนาดรูปภาพเพื่อประหยัดพื้นที่บน Cloud
                     if (width > maxWidth) {
                         height = Math.round((height * maxWidth) / width);
                         width = maxWidth;
@@ -1323,12 +1155,9 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    // บีบอัดเป็น JPEG 
                     const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                    
                     document.getElementById(targetId).value = dataUrl;
                     
-                    // --- แสดงผลพรีวิวทันที (Instant Preview) ---
                     if (targetId === 'input-app-icon') {
                         const defaultIcon = document.getElementById('default-app-icon');
                         const customIcon = document.getElementById('custom-app-icon');
@@ -1340,7 +1169,6 @@
                     } else if (targetId === 'input-bg') {
                         document.documentElement.style.setProperty('--bg-image', `url('${dataUrl}')`);
                     }
-                    // ------------------------------------
 
                     showToast("เตรียมรูปสำเร็จ! กรุณากด 'บันทึกการตั้งค่า'", "success");
                 }
@@ -1367,14 +1195,6 @@
             mc.classList.add('scale-95');
             setTimeout(() => m.classList.add('hidden'), 300);
         }
-        
-        // Handle CSS class injection dynamically
-        document.head.insertAdjacentHTML("beforeend", `<style>
-            .focus-ring-primary:focus {
-                --tw-ring-color: var(--color-primary);
-                border-color: var(--color-primary);
-            }
-        </style>`);
     </script>
 </body>
 </html>
