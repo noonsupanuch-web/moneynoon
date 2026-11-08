@@ -52,18 +52,12 @@
             transition: background 0.3s ease;
         }
         
-        /* Glassmorphism for main containers when BG is active */
+        /* Glassmorphism for main containers */
         .glass-panel {
             background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             box-shadow: 0 8px 32px rgba(244, 114, 182, 0.15);
-        }
-
-        .dark-glass-panel {
-            background: rgba(15, 23, 42, 0.9);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
         }
         
         /* Custom Scrollbar */
@@ -96,7 +90,6 @@
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
-        /* Loading Overlay */
         #loading-overlay {
             transition: opacity 0.5s ease;
         }
@@ -121,9 +114,9 @@
                 <div class="min-w-0 flex-1">
                     <h1 class="text-lg md:text-2xl font-bold text-gray-900 leading-snug flex flex-wrap items-center gap-2">
                         <span id="display-app-name" class="break-words line-clamp-2">การเงินที่ร่ำรวยของนุ่น ศุภนุช มะณีศรี (Noon Supanuch)</span> 
-                        <span class="text-[10px] md:text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium shrink-0">Online</span>
+                        <span class="text-[10px] md:text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium shrink-0"><i class="ph-fill ph-cloud-check mr-1"></i>Online</span>
                     </h1>
-                    <p class="text-xs md:text-sm text-gray-500 mt-0.5">บริหารความมั่งคั่งของคุณ</p>
+                    <p class="text-xs md:text-sm text-gray-500 mt-0.5">บริหารความมั่งคั่งและการเงิน</p>
                 </div>
             </div>
             <div class="flex gap-2 shrink-0">
@@ -153,7 +146,8 @@
                 </div>
                 <div class="relative z-10 text-right hidden sm:block">
                     <div class="inline-flex items-center gap-2 bg-white/20 px-4 py-2 rounded-xl text-sm text-white backdrop-blur-sm border border-white/30 shadow-sm">
-                        <i class="ph-fill ph-cloud-check text-white"></i> ซิงค์ล่าสุด: <span id="sync-time">กำลังซิงค์...</span>
+                        <i class="ph-fill ph-arrows-clockwise text-white animate-spin-slow" id="sync-icon"></i> 
+                        อัปเดตล่าสุด: <span id="sync-time">กำลังซิงค์...</span>
                     </div>
                 </div>
             </div>
@@ -275,7 +269,7 @@
                     <div class="relative h-[250px] w-full flex justify-center">
                         <canvas id="expenseChart"></canvas>
                         <div id="no-chart-data" class="absolute inset-0 flex items-center justify-center text-gray-400 font-medium hidden">
-                            ยังไม่มีข้อมูลรายจ่ายในชวงเวลานี้
+                            ยังไม่มีข้อมูลรายจ่ายในช่วงเวลานี้
                         </div>
                     </div>
                 </div>
@@ -447,7 +441,6 @@
 
         // Global Setup
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'meetung-online';
-        const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
         
         let app, db, auth;
         let currentUser = null;
@@ -461,7 +454,7 @@
             bgImage: '', 
             appName: 'การเงินที่ร่ำรวยของนุ่น ศุภนุช มะณีศรี (Noon Supanuch)', 
             appIcon: '',
-            gasUrl: 'https://script.google.com/macros/s/AKfycbx1EJx0DtUCzMPXD7dTO2FbybeRLsbRSaQGxXzOVItByszxZ-LgyZWnjacsesIQzmCR/exec'
+            gasUrl: 'https://script.google.com/macros/s/AKfycbzt3Rn_aDL1kGDAibg0GAlMOMy-NjMI83at43d6bkuN5_8qI0ayt-TBMwfeH9MTkjza/exec'
         };
         window.expenseChartInstance = null;
         
@@ -489,24 +482,28 @@
         };
 
         // Initialize Firebase safely
-        try {
-            const config = JSON.parse(firebaseConfigStr);
-            if(Object.keys(config).length > 0) {
+        async function initFirebaseApp() {
+            try {
+                if (typeof __firebase_config === 'undefined' || !__firebase_config) {
+                    throw new Error("ไม่พบการเชื่อมต่อ Cloud (ทำงานในโหมดออฟไลน์)");
+                }
+                
+                let config;
+                try {
+                    config = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
+                } catch(parseErr) {
+                    throw new Error("การตั้งค่า Cloud ไม่ถูกต้อง");
+                }
+                
+                if(Object.keys(config).length === 0) {
+                    throw new Error("ไม่ได้กำหนดค่า Cloud Storage");
+                }
+
                 app = initializeApp(config);
                 db = getFirestore(app);
                 auth = getAuth(app);
-                initAuth();
-            } else {
-                throw new Error("No Firebase config");
-            }
-        } catch(e) {
-            console.error("Firebase config error, running offline mock mode.", e);
-            hideLoading();
-            setupLocalMock();
-        }
-
-        async function initAuth() {
-            try {
+                
+                // ตรวจสอบ Token ก่อนเพื่อความปลอดภัยสูงสุดตามกฎ
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
@@ -519,21 +516,25 @@
                         startDataSync();
                     } else {
                         hideLoading();
+                        setupLocalMock();
                     }
                 });
-            } catch (error) {
-                console.error("Auth error:", error);
-                showToast("ใช้ระบบโหมดชั่วคราว (Offline)", "warning");
+            } catch(e) {
+                console.warn("Offline fallback mode:", e.message);
+                showToast("ทำงานในโหมดบันทึกลงเครื่อง: " + e.message, "warning");
                 hideLoading();
                 setupLocalMock();
             }
         }
 
+        // เริ่มรันระบบเชื่อมต่อออนไลน์
+        initFirebaseApp();
+
         function startDataSync() {
             if (!currentUser || !db) return;
             const uid = currentUser.uid;
 
-            // 1. Sync User Settings & Wealth
+            // 1. Sync User Settings & Wealth (ข้อมูลส่วนตัวและตั้งค่า)
             const profileRef = doc(db, 'artifacts', appId, 'users', uid);
             onSnapshot(profileRef, (docSnap) => {
                 if (docSnap.exists()) {
@@ -551,7 +552,7 @@
                 hideLoading();
             });
 
-            // 2. Sync Transactions
+            // 2. Sync Transactions (ซิงค์รายการรับ-จ่ายแบบเรียลไทม์)
             const transRef = collection(db, 'artifacts', appId, 'users', uid, 'transactions');
             onSnapshot(transRef, (snapshot) => {
                 const loadedTrans = [];
@@ -573,7 +574,15 @@
         function updateSyncTime() {
             const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
             const syncEl = document.getElementById('sync-time');
+            const syncIcon = document.getElementById('sync-icon');
+            
             if (syncEl) syncEl.innerText = timeStr;
+            
+            // ทำให้ไอคอนหมุนนิดหน่อยเวลาซิงค์
+            if (syncIcon) {
+                syncIcon.classList.add('animate-spin');
+                setTimeout(() => syncIcon.classList.remove('animate-spin'), 1000);
+            }
         }
 
         // --- Expose functions to window for HTML handlers ---
@@ -668,7 +677,7 @@
                 try {
                     const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions', dbId);
                     await deleteDoc(docRef);
-                    showToast("ลบรายการเรียบร้อย", "success");
+                    showToast("ลบรายการจาก Cloud เรียบร้อย", "success");
                 } catch(e) {
                     console.error(e);
                     window.transactions = window.transactions.filter(t => t.dbId !== dbId);
@@ -683,8 +692,8 @@
         };
 
         window.exportToGoogleSheets = async function() {
-            const defaultUrl = 'https://script.google.com/macros/s/AKfycbx1EJx0DtUCzMPXD7dTO2FbybeRLsbRSaQGxXzOVItByszxZ-LgyZWnjacsesIQzmCR/exec';
-            const url = window.settingsData.gasUrl || defaultUrl;
+            const defaultUrl = 'https://script.google.com/macros/s/AKfycbzt3Rn_aDL1kGDAibg0GAlMOMy-NjMI83at43d6bkuN5_8qI0ayt-TBMwfeH9MTkjza/exec';
+            const url = (window.settingsData && window.settingsData.gasUrl) ? window.settingsData.gasUrl : defaultUrl;
             
             if (!url) {
                 openSettingsModal();
@@ -716,15 +725,16 @@
             };
 
             try {
+                // ส่งข้อมูลออนไลน์โดยใช้โหมด no-cors เพื่อทะลุกำแพงความปลอดภัย Google
                 await fetch(url, {
                     method: 'POST',
-                    mode: 'no-cors', // ป้องกัน Error เรื่อง CORS จาก Google
-                    headers: { 'Content-Type': 'application/json' },
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify(payload)
                 });
-                showToast("ส่งข้อมูลไป Google Sheets สำเร็จ! 🎉", "success");
+                showToast("ส่งข้อมูลไป Google Sheets สำเร็จ! ข้อมูลจัดเรียงเรียบร้อย 🎉", "success");
             } catch(e) {
-                showToast("เกิดข้อผิดพลาดในการส่งข้อมูล", "error");
+                showToast("เกิดข้อผิดพลาดในการส่งข้อมูล โปรดตรวจสอบสัญญาณอินเทอร์เน็ต", "error");
                 console.error(e);
             }
         };
@@ -1046,7 +1056,7 @@
             const bg = window.settingsData.bgImage;
             const appName = window.settingsData.appName || 'การเงินที่ร่ำรวยของนุ่น ศุภนุช มะณีศรี (Noon Supanuch)';
             const appIcon = window.settingsData.appIcon || '';
-            const gasUrl = window.settingsData.gasUrl || 'https://script.google.com/macros/s/AKfycbx1EJx0DtUCzMPXD7dTO2FbybeRLsbRSaQGxXzOVItByszxZ-LgyZWnjacsesIQzmCR/exec';
+            const gasUrl = window.settingsData.gasUrl || 'https://script.google.com/macros/s/AKfycbzt3Rn_aDL1kGDAibg0GAlMOMy-NjMI83at43d6bkuN5_8qI0ayt-TBMwfeH9MTkjza/exec';
             
             root.style.setProperty('--color-primary', primary);
             
@@ -1110,6 +1120,34 @@
             // Input color listener
             document.getElementById('input-color').addEventListener('input', function(e) {
                 document.getElementById('input-color-hex').value = e.target.value;
+                document.documentElement.style.setProperty('--color-primary', e.target.value); // พรีวิวสีทันที
+            });
+
+            // Instant App Icon Preview from URL input
+            document.getElementById('input-app-icon').addEventListener('input', function(e) {
+                const url = e.target.value;
+                const defaultIcon = document.getElementById('default-app-icon');
+                const customIcon = document.getElementById('custom-app-icon');
+                if(customIcon && defaultIcon) {
+                    if (url && url.trim() !== '') {
+                        customIcon.src = url;
+                        customIcon.classList.remove('hidden');
+                        defaultIcon.classList.add('hidden');
+                    } else {
+                        customIcon.classList.add('hidden');
+                        defaultIcon.classList.remove('hidden');
+                    }
+                }
+            });
+
+            // Instant Background Preview from URL input
+            document.getElementById('input-bg').addEventListener('input', function(e) {
+                const url = e.target.value;
+                if (url && url.trim() !== '') {
+                    document.documentElement.style.setProperty('--bg-image', `url('${url}')`);
+                } else {
+                    document.documentElement.style.setProperty('--bg-image', 'linear-gradient(135deg, #fff1eb 0%, #ace0f9 100%)');
+                }
             });
         };
 
@@ -1122,7 +1160,7 @@
         function showToast(message, type = 'success') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
-            toast.className = `toast-enter flex items-center gap-3 px-5 py-4 rounded-xl shadow-lg text-white font-medium ${type === 'success' ? 'bg-slate-800' : 'bg-rose-500'}`;
+            toast.className = `toast-enter flex items-center gap-3 px-5 py-4 rounded-xl shadow-lg text-white font-medium z-50 ${type === 'success' ? 'bg-slate-800' : 'bg-rose-500'}`;
             const icon = type === 'success' ? '<i class="ph-bold ph-check-circle text-xl text-emerald-400"></i>' : '<i class="ph-bold ph-warning-circle text-xl"></i>';
             toast.innerHTML = `${icon} <span>${message}</span>`;
             container.appendChild(toast);
@@ -1226,6 +1264,21 @@
                     const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
                     
                     document.getElementById(targetId).value = dataUrl;
+                    
+                    // --- แสดงผลพรีวิวทันที (Instant Preview) ---
+                    if (targetId === 'input-app-icon') {
+                        const defaultIcon = document.getElementById('default-app-icon');
+                        const customIcon = document.getElementById('custom-app-icon');
+                        if(customIcon && defaultIcon) {
+                            customIcon.src = dataUrl;
+                            customIcon.classList.remove('hidden');
+                            defaultIcon.classList.add('hidden');
+                        }
+                    } else if (targetId === 'input-bg') {
+                        document.documentElement.style.setProperty('--bg-image', `url('${dataUrl}')`);
+                    }
+                    // ------------------------------------
+
                     showToast("เตรียมรูปสำเร็จ! กรุณากด 'บันทึกการตั้งค่า'", "success");
                 }
                 img.src = e.target.result;
