@@ -423,21 +423,15 @@
     <!-- Toast Notification Container -->
     <div id="toast-container" class="fixed bottom-4 right-4 z-[60] flex flex-col gap-2"></div>
 
-    <!-- Firebase System -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <!-- Sync System via Google Sheets -->
+    <script>
+        const TARGET_SHEET_URL = 'https://script.google.com/macros/s/AKfycbzFHH_0CZQHm5Njb16Z5DqF3zz8chKFFsWqHbTKNvcsCc8osvRpzDge6ppD05wn9dY3/exec';
+        let lastSyncTimestamp = null;
+        let isSyncing = false;
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'meetung-online';
-        
-        let app, db, auth;
-        let currentUser = null;
-        
         window.transactions = [];
         window.wealthData = { savings: 0, assets: 0, liabilities: 0 };
         window.goalsData = [];
-        // ลบ gasUrl ออกจาก Setting เพื่อป้องกันการแก้ไข บังคับใช้ค่าคงที่เท่านั้น
         window.settingsData = { 
             primaryColor: '#f472b6', 
             bgImage: '', 
@@ -492,90 +486,60 @@
             applySettings();
         }
 
-        async function initFirebaseApp() {
-            // ป้องกันหน้าจอค้าง: หาก Cloud ไม่ตอบสนองใน 2.5 วินาที ให้ซ่อนหน้าโหลดและใช้โหมด Local
-            const fallbackTimer = setTimeout(() => {
-                hideLoading();
-                loadFromLocalFallback();
-                window.updateUI();
-            }, 2500);
-
+        async function fetchSyncFromCloud() {
+            if (isSyncing) return;
             try {
-                let config = null;
-                if (typeof __firebase_config !== 'undefined') {
-                    config = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
-                }
+                isSyncing = true;
+                updateSyncTime(true);
+                const response = await fetch(TARGET_SHEET_URL, {
+                    method: 'GET',
+                    // ไม่บังคับ no-cors เพื่อให้สามารถอ่านค่า JSON ที่ส่งกลับมาได้
+                });
                 
-                if (!config) {
-                    throw new Error("Missing Firebase config");
+                if (!response.ok) throw new Error("Network response was not ok");
+                
+                const text = await response.text(); 
+                
+                try {
+                    const data = JSON.parse(text); 
+                    if (data && !data.error && data.timestamp && data.timestamp !== lastSyncTimestamp) {
+                        lastSyncTimestamp = data.timestamp;
+                        if(data.transactions) window.transactions = data.transactions;
+                        if(data.wealth) window.wealthData = data.wealth;
+                        if(data.goals) window.goalsData = data.goals;
+                        if(data.settings) window.settingsData = { ...window.settingsData, ...data.settings };
+                        
+                        saveToLocalFallback();
+                        applySettings();
+                        window.updateUI();
+                    }
+                } catch (parseError) {
+                    console.warn("[Sync Warning] ไม่สามารถอ่านข้อมูล JSON จากเซิร์ฟเวอร์ได้ กำลังใช้ข้อมูลจากในเครื่องแทน");
                 }
 
-                app = initializeApp(config);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-                
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        clearTimeout(fallbackTimer);
-                        currentUser = user;
-                        startDataSync();
-                    }
-                });
             } catch(e) {
-                console.warn("สลับไปใช้งานโหมด Local Storage + Google Sheets", e.message);
-                // ระบบ fallbackTimer จะทำงานอัตโนมัติเพื่อปลดล็อคหน้าจอ
+                console.warn("[Sync Warning] การเชื่อมต่อกับ Google Sheets ล่าช้า กำลังใช้ข้อมูลสำรอง");
+            } finally {
+                isSyncing = false;
+                hideLoading();
+                updateSyncTime(false);
             }
         }
 
-        initFirebaseApp();
+        // เริ่มโหลดข้อมูลทันที และดึงข้อมูลใหม่ทุกๆ 3 วินาที (เพื่อให้เครื่องอื่นๆ อัปเดตตามทันที)
+        loadFromLocalFallback();
+        fetchSyncFromCloud();
+        setInterval(fetchSyncFromCloud, 3000);
 
-        function startDataSync() {
-            if (!currentUser || !db) return;
-
-            const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
-            onSnapshot(profileRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    if(data.wealth) window.wealthData = data.wealth;
-                    if(data.settings) window.settingsData = { ...window.settingsData, ...data.settings };
-                    if(data.goals) window.goalsData = data.goals;
-                }
-                applySettings();
-                window.updateUI();
-                hideLoading();
-                updateSyncTime();
-            });
-
-            const transRef = collection(db, 'artifacts', appId, 'public', 'data', 'noon_transactions');
-            onSnapshot(transRef, (snapshot) => {
-                const loadedTrans = [];
-                snapshot.forEach(doc => {
-                    loadedTrans.push({ dbId: doc.id, ...doc.data() });
-                });
-                
-                loadedTrans.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                window.transactions = loadedTrans;
-                
-                window.updateUI();
-                updateSyncTime();
-            });
-        }
-
-        function updateSyncTime() {
+        function updateSyncTime(animating = false) {
             const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
             const syncEl = document.getElementById('sync-time');
             const syncIcon = document.getElementById('sync-icon');
             
-            if (syncEl) syncEl.innerText = timeStr;
+            if (syncEl && !animating) syncEl.innerText = timeStr;
             if (syncIcon) {
-                syncIcon.classList.add('animate-spin');
-                setTimeout(() => syncIcon.classList.remove('animate-spin'), 1000);
+                if(animating) syncIcon.classList.add('animate-spin');
+                else syncIcon.classList.remove('animate-spin');
             }
         }
 
@@ -585,12 +549,7 @@
             const liabilities = parseFloat(document.getElementById('input-liabilities').value) || 0;
 
             window.wealthData = { savings, assets, liabilities };
-            saveToLocalFallback(); // บันทึกสำรองในเครื่อง
-
-            if(currentUser && db) {
-                const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
-                await setDoc(profileRef, { wealth: { savings, assets, liabilities } }, { merge: true });
-            }
+            saveToLocalFallback(); 
             window.updateUI();
             closeWealthModal();
             window.exportToGoogleSheets(true); 
@@ -604,14 +563,10 @@
 
             window.settingsData = { primaryColor, bgImage, appName, appIcon };
             applySettings();
-            saveToLocalFallback(); // บันทึกสำรองในเครื่อง
-
-            if(currentUser && db) {
-                const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
-                await setDoc(profileRef, { settings: { primaryColor, bgImage, appName, appIcon } }, { merge: true });
-                showToast("บันทึกการตั้งค่าลง Cloud เรียบร้อย", "success");
-            }
+            saveToLocalFallback(); 
             closeSettingsModal();
+            window.exportToGoogleSheets(true);
+            showToast("บันทึกการตั้งค่าเรียบร้อย", "success");
         };
 
         document.getElementById('transaction-form').addEventListener('submit', async function(e) {
@@ -627,74 +582,60 @@
 
             const newTx = { type, amount, categoryId, note, date, createdAt: Date.now(), dbId: Date.now().toString() };
 
-            // อัปเดตหน้าจอทันที ไม่ต้องรอ Cloud
+            // อัปเดตหน้าจอทันที
             window.transactions.unshift(newTx);
             saveToLocalFallback();
             window.updateUI();
-
-            if(currentUser && db) {
-                const transRef = collection(db, 'artifacts', appId, 'public', 'data', 'noon_transactions');
-                await addDoc(transRef, newTx);
-                showToast("บันทึกข้อมูลสำเร็จ ✨", "success");
-            } else {
-                showToast("บันทึกข้อมูลสำเร็จ ✨", "success");
-            }
-
+            
             document.getElementById('trans-amount').value = '';
             document.getElementById('trans-note').value = '';
             
+            showToast("บันทึกข้อมูลสำเร็จ ✨", "success");
             window.exportToGoogleSheets(true);
         });
 
         window.deleteTransaction = async function(dbId) {
-            // อัปเดตหน้าจอทันที
             window.transactions = window.transactions.filter(t => t.dbId !== dbId);
             saveToLocalFallback();
             window.updateUI();
-
-            if(currentUser && db) {
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'noon_transactions', dbId);
-                await deleteDoc(docRef);
-                showToast("ลบรายการเรียบร้อย", "success");
-            }
+            showToast("ลบรายการเรียบร้อย", "success");
             window.exportToGoogleSheets(true);
         };
 
-        // ฟังก์ชัน Auto-Sync ล็อกเป้าหมายลง Google Sheets 
         window.exportToGoogleSheets = async function(silent = false) {
-            // ล็อกเป้าหมายห้ามเปลี่ยนแปลงเด็ดขาด
-            const TARGET_SHEET_URL = 'https://script.google.com/macros/s/AKfycbygDKsDwSlvMipzddTcvhcVHllPmPa4cTgVCs3ShlXyUeT3Zq6rVOqYMHIRef4VqZOg/exec';
-            
             const getCatName = (type, id) => {
                 const list = window.categories[type] || [];
                 const cat = list.find(c => c.id === id);
                 return cat ? cat.name : 'อื่นๆ';
             };
-
-            const formattedTransactions = window.transactions.map(t => ({
-                date: t.date,
-                type: t.type,
-                categoryName: getCatName(t.type, t.categoryId),
-                amount: t.amount,
-                note: t.note || ''
+            
+            const txWithNames = window.transactions.map(t => ({
+                ...t,
+                categoryName: getCatName(t.type, t.categoryId)
             }));
 
             const payload = {
-                transactions: formattedTransactions,
+                transactions: txWithNames,
                 wealth: window.wealthData,
                 goals: window.goalsData,
-                timestamp: new Date().toISOString()
+                settings: window.settingsData,
+                timestamp: Date.now().toString()
             };
 
+            lastSyncTimestamp = payload.timestamp;
+
             try {
+                updateSyncTime(true);
                 await fetch(TARGET_SHEET_URL, {
                     method: 'POST',
-                    mode: 'no-cors',
+                    mode: 'no-cors', // บังคับ no-cors สำหรับ POST เพื่อไม่ให้ติด Block จาก Browser
                     headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify(payload)
                 });
             } catch(e) {
-                console.error("Sheet sync error", e);
+                console.warn("[Sync Warning] ไม่สามารถส่งข้อมูลขึ้น Google Sheets ได้ ระบบได้บันทึกไว้ในเครื่องแล้ว");
+            } finally {
+                updateSyncTime(false);
             }
         };
 
@@ -803,10 +744,6 @@
             window.goalsData = currentGoals;
             saveToLocalFallback(); // บันทึกสำรองในเครื่อง
 
-            if(currentUser && db) {
-                const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
-                await setDoc(profileRef, { goals: currentGoals }, { merge: true });
-            }
             window.updateUI();
             closeGoalModal();
             window.exportToGoogleSheets(true);
@@ -817,10 +754,6 @@
             window.goalsData = currentGoals;
             saveToLocalFallback(); // บันทึกสำรองในเครื่อง
 
-            if(currentUser && db) {
-                const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
-                await setDoc(profileRef, { goals: currentGoals }, { merge: true });
-            }
             window.updateUI();
             window.exportToGoogleSheets(true);
         };
