@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MeeTung - ระบบบริหารการเงินส่วนตัว</title>
-    <!-- สถานะ: สมบูรณ์ 100% เชื่อมต่อ Cloud, ระบบล็อครหัสผ่าน, และ Google Sheets -->
+    <!-- สถานะ: สมบูรณ์ 100% เชื่อมต่อ Cloud, ระบบล็อครหัสผ่าน, และ Google Sheets (Auto-Sync) -->
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -141,9 +141,7 @@
                 </div>
             </div>
             <div class="flex gap-2 shrink-0">
-                <button onclick="exportToGoogleSheets()" class="w-10 h-10 md:w-12 md:h-12 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl shadow-sm transition-colors border border-emerald-200 flex items-center justify-center tooltip-btn" title="ส่งออกไปยัง Google Sheets">
-                    <i class="ph-fill ph-file-xls text-xl md:text-2xl"></i>
-                </button>
+                <!-- นำปุ่มส่งออก Excel ออก เพื่อใช้งาน Auto-Sync อัตโนมัติ -->
                 <button onclick="openWealthModal()" class="w-10 h-10 md:w-12 md:h-12 bg-white hover:bg-gray-50 text-gray-700 rounded-xl shadow-sm transition-colors border border-gray-100 flex items-center justify-center tooltip-btn" title="อัปเดตทรัพย์สิน/หนี้สิน">
                     <i class="ph-fill ph-piggy-bank text-xl md:text-2xl"></i>
                 </button>
@@ -441,7 +439,7 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1"><i class="ph-fill ph-google-logo text-emerald-500"></i> Google Sheets Web App URL</label>
                     <input type="text" id="input-gas-url" class="w-full px-4 py-3 rounded-xl border border-emerald-200 focus:ring-2 outline-none transition-all focus:ring-emerald-400 focus:border-emerald-400 text-sm bg-emerald-50/50" placeholder="https://script.google.com/macros/s/......./exec">
-                    <p class="text-xs text-gray-500 mt-1">ใส่ URL จาก Google Apps Script เพื่อใช้ปุ่มส่งออกข้อมูล</p>
+                    <p class="text-xs text-gray-500 mt-1">ใส่ URL จาก Google Apps Script เพื่อใช้ซิงค์ข้อมูล (Auto-Sync)</p>
                 </div>
                 
                 <button onclick="saveSettingsData()" class="w-full py-4 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all mt-6" style="background-color: var(--color-primary)">
@@ -475,7 +473,7 @@
             bgImage: '', 
             appName: 'การเงินที่ร่ำรวยของนุ่น ศุภนุช มะณีศรี (Noon Supanuch)', 
             appIcon: '',
-            gasUrl: 'https://script.google.com/macros/s/AKfycbzt3Rn_aDL1kGDAibg0GAlMOMy-NjMI83at43d6bkuN5_8qI0ayt-TBMwfeH9MTkjza/exec'
+            gasUrl: 'https://script.google.com/macros/s/AKfycbxX5Dar-_fnwsTHUGVi8o0TpPbESLHIO-aiGwdJwNhOx2Mr7ZCIWuiocphH4Rlf3l3R/exec'
         };
         window.expenseChartInstance = null;
         
@@ -627,6 +625,8 @@
             }
             window.updateUI();
             closeWealthModal();
+            // Auto-Sync ไป Google Sheets แบบเงียบๆ
+            window.exportToGoogleSheets(true); 
         };
 
         window.saveSettingsData = async function() {
@@ -690,6 +690,9 @@
 
             document.getElementById('trans-amount').value = '';
             document.getElementById('trans-note').value = '';
+            
+            // Auto-Sync ไป Google Sheets แบบเงียบๆ
+            window.exportToGoogleSheets(true);
         });
 
         window.deleteTransaction = async function(dbId) {
@@ -709,18 +712,22 @@
                 window.updateUI();
                 showToast("ลบรายการแล้ว", "success");
             }
+            // Auto-Sync ไป Google Sheets แบบเงียบๆ
+            window.exportToGoogleSheets(true);
         };
 
-        window.exportToGoogleSheets = async function() {
-            const defaultUrl = 'https://script.google.com/macros/s/AKfycbzt3Rn_aDL1kGDAibg0GAlMOMy-NjMI83at43d6bkuN5_8qI0ayt-TBMwfeH9MTkjza/exec';
+        // ฟังก์ชัน Auto-Sync ไปยัง Google Sheets
+        window.exportToGoogleSheets = async function(silent = false) {
+            const defaultUrl = 'https://script.google.com/macros/s/AKfycbxX5Dar-_fnwsTHUGVi8o0TpPbESLHIO-aiGwdJwNhOx2Mr7ZCIWuiocphH4Rlf3l3R/exec';
             const url = (window.settingsData && window.settingsData.gasUrl) ? window.settingsData.gasUrl : defaultUrl;
             
             if (!url) {
-                openSettingsModal();
-                return showToast("กรุณาใส่ Web App URL ของ Google Sheets ที่หน้าตั้งค่าก่อนครับ", "warning");
+                if(!silent) openSettingsModal();
+                if(!silent) showToast("กรุณาใส่ Web App URL ของ Google Sheets ที่หน้าตั้งค่าก่อนครับ", "warning");
+                return;
             }
             
-            showToast("กำลังส่งข้อมูลไปยัง Google Sheets... ⏳", "success");
+            if(!silent) showToast("กำลังซิงค์ข้อมูลกับ Google Sheets... ⏳", "success");
             
             // แปลงรหัสหมวดหมู่เป็นชื่อหมวดหมู่ภาษาไทย
             const getCatName = (type, id) => {
@@ -752,9 +759,9 @@
                     headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify(payload)
                 });
-                showToast("ส่งข้อมูลไป Google Sheets สำเร็จ! ข้อมูลจัดเรียงเรียบร้อย 🎉", "success");
+                if(!silent) showToast("ซิงค์ข้อมูลกับ Google Sheets สำเร็จ! 🎉", "success");
             } catch(e) {
-                showToast("เกิดข้อผิดพลาดในการส่งข้อมูล โปรดตรวจสอบสัญญาณอินเทอร์เน็ต", "error");
+                if(!silent) showToast("เกิดข้อผิดพลาดในการซิงค์ข้อมูล โปรดตรวจสอบอินเทอร์เน็ต", "error");
                 console.error(e);
             }
         };
@@ -883,6 +890,9 @@
             }
             window.updateUI();
             closeGoalModal();
+            
+            // Auto-Sync ไป Google Sheets แบบเงียบๆ
+            window.exportToGoogleSheets(true);
         };
 
         window.deleteGoal = async function(goalId) {
@@ -902,6 +912,9 @@
                 showToast("ลบเป้าหมายแล้ว", "success");
             }
             window.updateUI();
+            
+            // Auto-Sync ไป Google Sheets แบบเงียบๆ
+            window.exportToGoogleSheets(true);
         };
 
         function calculateTotals() {
@@ -1076,7 +1089,7 @@
             const bg = window.settingsData.bgImage;
             const appName = window.settingsData.appName || 'การเงินที่ร่ำรวยของนุ่น ศุภนุช มะณีศรี (Noon Supanuch)';
             const appIcon = window.settingsData.appIcon || '';
-            const gasUrl = window.settingsData.gasUrl || 'https://script.google.com/macros/s/AKfycbzt3Rn_aDL1kGDAibg0GAlMOMy-NjMI83at43d6bkuN5_8qI0ayt-TBMwfeH9MTkjza/exec';
+            const gasUrl = window.settingsData.gasUrl || 'https://script.google.com/macros/s/AKfycbxX5Dar-_fnwsTHUGVi8o0TpPbESLHIO-aiGwdJwNhOx2Mr7ZCIWuiocphH4Rlf3l3R/exec';
             
             root.style.setProperty('--color-primary', primary);
             
