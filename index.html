@@ -553,10 +553,9 @@
 
         function startDataSync() {
             if (!currentUser || !db) return;
-            const uid = currentUser.uid;
 
-            // 1. Sync User Settings & Wealth (ข้อมูลส่วนตัวและตั้งค่า)
-            const profileRef = doc(db, 'artifacts', appId, 'users', uid);
+            // 1. Sync User Settings & Wealth (ข้อมูลส่วนตัวและตั้งค่าแบบส่วนกลาง แชร์ทุกอุปกรณ์)
+            const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
             onSnapshot(profileRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
@@ -573,8 +572,8 @@
                 hideLoading();
             });
 
-            // 2. Sync Transactions (ซิงค์รายการรับ-จ่ายแบบเรียลไทม์)
-            const transRef = collection(db, 'artifacts', appId, 'users', uid, 'transactions');
+            // 2. Sync Transactions (ซิงค์รายการรับ-จ่ายแบบเรียลไทม์ แชร์ทุกอุปกรณ์)
+            const transRef = collection(db, 'artifacts', appId, 'public', 'data', 'noon_transactions');
             onSnapshot(transRef, (snapshot) => {
                 const loadedTrans = [];
                 snapshot.forEach(doc => {
@@ -615,7 +614,7 @@
             window.wealthData = { savings, assets, liabilities };
 
             if(currentUser && db) {
-                const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid);
+                const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
                 try {
                     await setDoc(profileRef, { wealth: { savings, assets, liabilities } }, { merge: true });
                     showToast("อัปเดตฐานะการเงินออนไลน์เรียบร้อย", "success");
@@ -641,7 +640,7 @@
             applySettings();
 
             if(currentUser && db) {
-                const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid);
+                const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
                 try {
                     await setDoc(profileRef, { settings: { primaryColor, bgImage, appName, appIcon, gasUrl } }, { merge: true });
                     showToast("บันทึกการตั้งค่าลง Cloud เรียบร้อย", "success");
@@ -672,7 +671,7 @@
 
             if(currentUser && db) {
                 try {
-                    const transRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions');
+                    const transRef = collection(db, 'artifacts', appId, 'public', 'data', 'noon_transactions');
                     await addDoc(transRef, newTx);
                     showToast("บันทึกข้อมูลลง Cloud สำเร็จ ✨", "success");
                 } catch(e) {
@@ -696,7 +695,7 @@
         window.deleteTransaction = async function(dbId) {
             if(currentUser && db) {
                 try {
-                    const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions', dbId);
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'noon_transactions', dbId);
                     await deleteDoc(docRef);
                     showToast("ลบรายการจาก Cloud เรียบร้อย", "success");
                 } catch(e) {
@@ -871,7 +870,7 @@
             window.goalsData = currentGoals;
 
             if(currentUser && db) {
-                const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid);
+                const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
                 try {
                     await setDoc(profileRef, { goals: currentGoals }, { merge: true });
                     showToast("บันทึกเป้าหมายลง Cloud เรียบร้อย", "success");
@@ -891,7 +890,7 @@
             window.goalsData = currentGoals;
 
             if(currentUser && db) {
-                const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid);
+                const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
                 try {
                     await setDoc(profileRef, { goals: currentGoals }, { merge: true });
                     showToast("ลบเป้าหมายแล้ว", "success");
