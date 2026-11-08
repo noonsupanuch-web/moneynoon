@@ -90,7 +90,7 @@
         }
         
         #loading-overlay {
-            transition: opacity 0.5s ease;
+            transition: opacity 0.3s ease;
         }
         
         .focus-ring-primary:focus {
@@ -468,9 +468,48 @@
             ]
         };
 
+        function saveToLocalFallback() {
+            const payload = {
+                transactions: window.transactions,
+                wealth: window.wealthData,
+                goals: window.goalsData,
+                settings: window.settingsData
+            };
+            localStorage.setItem('meetung_local_data', JSON.stringify(payload));
+        }
+
+        function loadFromLocalFallback() {
+            const localData = localStorage.getItem('meetung_local_data');
+            if (localData) {
+                try {
+                    const parsed = JSON.parse(localData);
+                    window.transactions = parsed.transactions || [];
+                    window.wealthData = parsed.wealth || { savings: 0, assets: 0, liabilities: 0 };
+                    window.goalsData = parsed.goals || [];
+                    if (parsed.settings) window.settingsData = { ...window.settingsData, ...parsed.settings };
+                } catch(e) {}
+            }
+            applySettings();
+        }
+
         async function initFirebaseApp() {
+            // ป้องกันหน้าจอค้าง: หาก Cloud ไม่ตอบสนองใน 2.5 วินาที ให้ซ่อนหน้าโหลดและใช้โหมด Local
+            const fallbackTimer = setTimeout(() => {
+                hideLoading();
+                loadFromLocalFallback();
+                window.updateUI();
+            }, 2500);
+
             try {
-                let config = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
+                let config = null;
+                if (typeof __firebase_config !== 'undefined') {
+                    config = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
+                }
+                
+                if (!config) {
+                    throw new Error("Missing Firebase config");
+                }
+
                 app = initializeApp(config);
                 db = getFirestore(app);
                 auth = getAuth(app);
@@ -483,12 +522,14 @@
                 
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
+                        clearTimeout(fallbackTimer);
                         currentUser = user;
                         startDataSync();
                     }
                 });
             } catch(e) {
-                console.error("Online mode required:", e.message);
+                console.warn("สลับไปใช้งานโหมด Local Storage + Google Sheets", e.message);
+                // ระบบ fallbackTimer จะทำงานอัตโนมัติเพื่อปลดล็อคหน้าจอ
             }
         }
 
@@ -544,6 +585,7 @@
             const liabilities = parseFloat(document.getElementById('input-liabilities').value) || 0;
 
             window.wealthData = { savings, assets, liabilities };
+            saveToLocalFallback(); // บันทึกสำรองในเครื่อง
 
             if(currentUser && db) {
                 const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
@@ -562,6 +604,7 @@
 
             window.settingsData = { primaryColor, bgImage, appName, appIcon };
             applySettings();
+            saveToLocalFallback(); // บันทึกสำรองในเครื่อง
 
             if(currentUser && db) {
                 const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
@@ -582,12 +625,19 @@
 
             if (isNaN(amount) || amount <= 0) return showToast("กรุณาระบุจำนวนเงินให้ถูกต้อง", "error");
 
-            const newTx = { type, amount, categoryId, note, date, createdAt: Date.now() };
+            const newTx = { type, amount, categoryId, note, date, createdAt: Date.now(), dbId: Date.now().toString() };
+
+            // อัปเดตหน้าจอทันที ไม่ต้องรอ Cloud
+            window.transactions.unshift(newTx);
+            saveToLocalFallback();
+            window.updateUI();
 
             if(currentUser && db) {
                 const transRef = collection(db, 'artifacts', appId, 'public', 'data', 'noon_transactions');
                 await addDoc(transRef, newTx);
-                showToast("บันทึกข้อมูลลง Cloud & ชีตสำเร็จ ✨", "success");
+                showToast("บันทึกข้อมูลสำเร็จ ✨", "success");
+            } else {
+                showToast("บันทึกข้อมูลสำเร็จ ✨", "success");
             }
 
             document.getElementById('trans-amount').value = '';
@@ -597,6 +647,11 @@
         });
 
         window.deleteTransaction = async function(dbId) {
+            // อัปเดตหน้าจอทันที
+            window.transactions = window.transactions.filter(t => t.dbId !== dbId);
+            saveToLocalFallback();
+            window.updateUI();
+
             if(currentUser && db) {
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'noon_transactions', dbId);
                 await deleteDoc(docRef);
@@ -608,7 +663,7 @@
         // ฟังก์ชัน Auto-Sync ล็อกเป้าหมายลง Google Sheets 
         window.exportToGoogleSheets = async function(silent = false) {
             // ล็อกเป้าหมายห้ามเปลี่ยนแปลงเด็ดขาด
-            const TARGET_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxX5Dar-_fnwsTHUGVi8o0TpPbESLHIO-aiGwdJwNhOx2Mr7ZCIWuiocphH4Rlf3l3R/exec';
+            const TARGET_SHEET_URL = 'https://script.google.com/macros/s/AKfycbygDKsDwSlvMipzddTcvhcVHllPmPa4cTgVCs3ShlXyUeT3Zq6rVOqYMHIRef4VqZOg/exec';
             
             const getCatName = (type, id) => {
                 const list = window.categories[type] || [];
@@ -746,6 +801,7 @@
             }
 
             window.goalsData = currentGoals;
+            saveToLocalFallback(); // บันทึกสำรองในเครื่อง
 
             if(currentUser && db) {
                 const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
@@ -759,6 +815,7 @@
         window.deleteGoal = async function(goalId) {
             let currentGoals = window.goalsData.filter(g => g.id !== goalId);
             window.goalsData = currentGoals;
+            saveToLocalFallback(); // บันทึกสำรองในเครื่อง
 
             if(currentUser && db) {
                 const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_profile', 'noon_data');
@@ -980,14 +1037,15 @@
             const loader = document.getElementById('loading-overlay');
             if(loader) {
                 loader.style.opacity = '0';
-                setTimeout(() => loader.remove(), 500);
+                setTimeout(() => loader.remove(), 300);
             }
         }
     </script>
 
     <script>
         window.onload = () => {
-            if (sessionStorage.getItem('meetung_logged_in') === 'true') {
+            // ใช้ localStorage เพื่อจำการล็อกอินถาวรในอุปกรณ์นั้นๆ เข้าแอปไวขึ้น
+            if (localStorage.getItem('meetung_logged_in') === 'true') {
                 const overlay = document.getElementById('login-overlay');
                 if (overlay) overlay.remove();
             }
@@ -1036,11 +1094,12 @@
         window.checkPassword = function() {
             const input = document.getElementById('app-password').value;
             if (input === 'Noon@452656') {
-                sessionStorage.setItem('meetung_logged_in', 'true');
+                // บันทึกการล็อกอินลงในเครื่อง
+                localStorage.setItem('meetung_logged_in', 'true');
                 const overlay = document.getElementById('login-overlay');
                 if (overlay) {
                     overlay.style.opacity = '0';
-                    setTimeout(() => overlay.remove(), 500);
+                    setTimeout(() => overlay.remove(), 200);
                 }
                 showToast("เข้าสู่ระบบสำเร็จ! 💖", "success");
             } else {
