@@ -200,6 +200,19 @@
                     <div id="goals-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
                 </div>
 
+                <!-- Wealth Details Section -->
+                <div class="glass-panel rounded-3xl p-6 shadow-sm border border-white/50">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-bold flex items-center gap-2">
+                            <i class="ph-fill ph-bank text-[var(--color-primary)]"></i> รายการทรัพย์สินและหนี้สิน
+                        </h3>
+                        <button onclick="openWealthModal()" class="text-sm bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg transition-colors font-medium flex items-center gap-1 border border-gray-200 shadow-sm">
+                            <i class="ph-bold ph-plus"></i> เพิ่มรายการ
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="wealth-items-list"></div>
+                </div>
+
                 <!-- History Section -->
                 <div class="glass-panel rounded-3xl p-6 shadow-sm border border-white/50 flex-1">
                     <div class="flex items-center justify-between mb-6">
@@ -218,23 +231,27 @@
     <div id="wealth-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl">
             <div class="flex justify-between items-center mb-6">
-                <h3 class="text-2xl font-bold text-gray-900 flex items-center gap-2"><i class="ph-fill ph-piggy-bank text-[var(--color-primary)]"></i> อัปเดตฐานะการเงิน</h3>
+                <h3 class="text-2xl font-bold text-gray-900 flex items-center gap-2"><i class="ph-fill ph-piggy-bank text-[var(--color-primary)]"></i> เพิ่มรายการฐานะการเงิน</h3>
                 <button onclick="closeWealthModal()" class="text-gray-400 hover:text-gray-600"><i class="ph-bold ph-x text-xl"></i></button>
             </div>
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium mb-1">เงินเก็บ (Savings)</label>
-                    <input type="number" id="input-savings" min="0" step="0.01" class="w-full px-4 py-3 rounded-xl border">
+                    <label class="block text-sm font-medium mb-1">ประเภท</label>
+                    <select id="input-wealth-type" class="w-full px-4 py-3 rounded-xl border">
+                        <option value="savings">เงินเก็บ (Savings)</option>
+                        <option value="assets">ทรัพย์สิน (Assets)</option>
+                        <option value="liabilities">หนี้สิน (Liabilities)</option>
+                    </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">ทรัพย์สิน (Assets)</label>
-                    <input type="number" id="input-assets" min="0" step="0.01" class="w-full px-4 py-3 rounded-xl border">
+                    <label class="block text-sm font-medium mb-1">ชื่อรายการ</label>
+                    <input type="text" id="input-wealth-name" placeholder="เช่น เงินฝากประจำ, รถยนต์, หนี้บ้าน..." class="w-full px-4 py-3 rounded-xl border">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">หนี้สิน (Liabilities)</label>
-                    <input type="number" id="input-liabilities" min="0" step="0.01" class="w-full px-4 py-3 rounded-xl border">
+                    <label class="block text-sm font-medium mb-1">มูลค่า (บาท)</label>
+                    <input type="number" id="input-wealth-amount" min="0" step="0.01" class="w-full px-4 py-3 rounded-xl border">
                 </div>
-                <button onclick="saveWealthData()" class="w-full py-4 text-white rounded-xl font-bold bg-[var(--color-primary)]">บันทึกข้อมูล</button>
+                <button onclick="saveWealthItem()" class="w-full py-4 text-white rounded-xl font-bold bg-[var(--color-primary)]">เพิ่มรายการ</button>
             </div>
         </div>
     </div>
@@ -297,6 +314,7 @@
         let isSyncing = false;
         window.transactions = [];
         window.wealthData = { savings: 0, assets: 0, liabilities: 0 };
+        window.wealthItems = [];
         window.goalsData = [];
         window.settingsData = { primaryColor: '#f472b6', bgImage: '', appName: 'การเงินที่ร่ำรวยของนุ่น ศุภนุช', appIcon: '' };
 
@@ -364,7 +382,7 @@
 
         // --- ☁️ ระบบซิงค์ข้อมูล (Cloud Sync) ---
         function saveToLocalFallback() {
-            const payload = { transactions, wealth: wealthData, goals: goalsData, settings: settingsData };
+            const payload = { transactions, wealth: wealthData, wealthItems, goals: goalsData, settings: settingsData };
             localStorage.setItem('meetung_local_data', JSON.stringify(payload));
         }
 
@@ -375,6 +393,7 @@
                     const parsed = JSON.parse(localData);
                     window.transactions = parsed.transactions || [];
                     window.wealthData = parsed.wealth || { savings: 0, assets: 0, liabilities: 0 };
+                    window.wealthItems = parsed.wealthItems || [];
                     window.goalsData = parsed.goals || [];
                     if (parsed.settings) window.settingsData = { ...window.settingsData, ...parsed.settings };
                 }
@@ -393,6 +412,7 @@
                     if (data && !data.error) {
                         if(data.transactions) window.transactions = data.transactions;
                         if(data.wealth) window.wealthData = data.wealth;
+                        if(data.wealthItems) window.wealthItems = data.wealthItems;
                         if(data.goals) window.goalsData = data.goals;
                         if(data.settings) window.settingsData = { ...window.settingsData, ...data.settings };
                         saveToLocalFallback();
@@ -413,6 +433,7 @@
             const payload = {
                 transactions: window.transactions,
                 wealth: window.wealthData,
+                wealthItems: window.wealthItems,
                 goals: window.goalsData,
                 settings: window.settingsData,
                 timestamp: Date.now().toString()
@@ -481,6 +502,11 @@
         }
 
         function updateUI() {
+            // คำนวณยอดเงินเก็บ ทรัพย์สิน และหนี้สิน จากรายการที่แยกย่อย
+            window.wealthData.savings = window.wealthItems.filter(i => i.type === 'savings').reduce((s, i) => s + i.amount, 0);
+            window.wealthData.assets = window.wealthItems.filter(i => i.type === 'assets').reduce((s, i) => s + i.amount, 0);
+            window.wealthData.liabilities = window.wealthItems.filter(i => i.type === 'liabilities').reduce((s, i) => s + i.amount, 0);
+
             let totalIncome = 0, totalExpense = 0;
             const listEl = document.getElementById('transaction-list');
             listEl.innerHTML = '';
@@ -524,6 +550,55 @@
             document.getElementById('display-liabilities').innerText = `฿${w.liabilities.toLocaleString('th-TH', {minimumFractionDigits:2})}`;
             document.getElementById('total-networth').innerText = `฿${netWorth.toLocaleString('th-TH', {minimumFractionDigits:2})}`;
 
+            // Update Wealth Items List
+            const wealthListEl = document.getElementById('wealth-items-list');
+            if(wealthListEl) {
+                wealthListEl.innerHTML = `
+                    <div>
+                        <h4 class="font-bold text-blue-600 border-b pb-2 mb-3">เงินเก็บ (Savings)</h4>
+                        <div class="space-y-2">
+                            ${window.wealthItems.filter(i=>i.type==='savings').map(i=>`
+                                <div class="flex justify-between items-center text-sm bg-white/50 p-3 rounded-xl border border-gray-100 shadow-sm">
+                                    <span class="font-medium text-gray-700 break-words w-1/2">${i.name}</span>
+                                    <div class="flex items-center gap-3">
+                                        <span class="font-bold text-blue-600">฿${i.amount.toLocaleString()}</span>
+                                        <button onclick="deleteWealthItem('${i.id}')" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"><i class="ph-bold ph-trash"></i></button>
+                                    </div>
+                                </div>
+                            `).join('') || '<p class="text-xs text-gray-400">ยังไม่มีรายการ</p>'}
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-emerald-600 border-b pb-2 mb-3">ทรัพย์สิน (Assets)</h4>
+                        <div class="space-y-2">
+                            ${window.wealthItems.filter(i=>i.type==='assets').map(i=>`
+                                <div class="flex justify-between items-center text-sm bg-white/50 p-3 rounded-xl border border-gray-100 shadow-sm">
+                                    <span class="font-medium text-gray-700 break-words w-1/2">${i.name}</span>
+                                    <div class="flex items-center gap-3">
+                                        <span class="font-bold text-emerald-600">฿${i.amount.toLocaleString()}</span>
+                                        <button onclick="deleteWealthItem('${i.id}')" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"><i class="ph-bold ph-trash"></i></button>
+                                    </div>
+                                </div>
+                            `).join('') || '<p class="text-xs text-gray-400">ยังไม่มีรายการ</p>'}
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-rose-500 border-b pb-2 mb-3">หนี้สิน (Liabilities)</h4>
+                        <div class="space-y-2">
+                            ${window.wealthItems.filter(i=>i.type==='liabilities').map(i=>`
+                                <div class="flex justify-between items-center text-sm bg-white/50 p-3 rounded-xl border border-gray-100 shadow-sm">
+                                    <span class="font-medium text-gray-700 break-words w-1/2">${i.name}</span>
+                                    <div class="flex items-center gap-3">
+                                        <span class="font-bold text-rose-500">฿${i.amount.toLocaleString()}</span>
+                                        <button onclick="deleteWealthItem('${i.id}')" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"><i class="ph-bold ph-trash"></i></button>
+                                    </div>
+                                </div>
+                            `).join('') || '<p class="text-xs text-gray-400">ยังไม่มีรายการ</p>'}
+                        </div>
+                    </div>
+                `;
+            }
+
             // Update Goals
             const goalsList = document.getElementById('goals-list');
             goalsList.innerHTML = '';
@@ -552,17 +627,24 @@
         }
 
         window.openWealthModal = () => {
-            document.getElementById('input-savings').value = window.wealthData.savings;
-            document.getElementById('input-assets').value = window.wealthData.assets;
-            document.getElementById('input-liabilities').value = window.wealthData.liabilities;
+            document.getElementById('input-wealth-type').value = 'savings';
+            document.getElementById('input-wealth-name').value = '';
+            document.getElementById('input-wealth-amount').value = '';
             document.getElementById('wealth-modal').classList.remove('hidden');
         };
         window.closeWealthModal = () => document.getElementById('wealth-modal').classList.add('hidden');
-        window.saveWealthData = () => {
-            window.wealthData.savings = parseFloat(document.getElementById('input-savings').value) || 0;
-            window.wealthData.assets = parseFloat(document.getElementById('input-assets').value) || 0;
-            window.wealthData.liabilities = parseFloat(document.getElementById('input-liabilities').value) || 0;
-            updateUI(); exportToGoogleSheets(); closeWealthModal(); showToast("อัปเดตทรัพย์สินแล้ว", "success");
+        window.saveWealthItem = () => {
+            const type = document.getElementById('input-wealth-type').value;
+            const name = document.getElementById('input-wealth-name').value;
+            const amount = parseFloat(document.getElementById('input-wealth-amount').value) || 0;
+            if (!name || amount <= 0) return showToast("กรุณากรอกข้อมูลให้ครบถ้วน", "error");
+            
+            window.wealthItems.push({ id: Date.now().toString(), type, name, amount });
+            updateUI(); exportToGoogleSheets(); closeWealthModal(); showToast("เพิ่มรายการสำเร็จ", "success");
+        };
+        window.deleteWealthItem = (id) => {
+            window.wealthItems = window.wealthItems.filter(i => i.id !== id);
+            updateUI(); exportToGoogleSheets(); showToast("ลบรายการแล้ว", "success");
         };
 
         window.openGoalModal = () => {
