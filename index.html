@@ -59,7 +59,7 @@
             <div class="absolute -right-6 -top-6 opacity-20">
                 <i class="ph-fill ph-sparkle text-8xl text-pink-400"></i>
             </div>
-            <div class="w-20 h-20 bg-pink-100 text-pink-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner relative z-10">
+            <div id="login-icon-container" class="w-20 h-20 bg-pink-100 text-pink-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner relative z-10 overflow-hidden border-2 border-white/50">
                 <i class="ph-fill ph-lock-key text-4xl"></i>
             </div>
             <h2 class="text-2xl font-bold text-gray-800 mb-2 relative z-10">MeeTung 💖</h2>
@@ -291,6 +291,19 @@
             </div>
             <div class="space-y-4">
                 <div>
+                    <label class="block text-sm font-medium mb-1">ไอคอนแอป (รูปภาพ)</label>
+                    <div class="flex items-center gap-4">
+                        <div class="w-16 h-16 rounded-2xl bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden shrink-0">
+                            <i class="ph-bold ph-image text-2xl text-gray-400" id="settings-icon-placeholder"></i>
+                            <img id="settings-icon-preview" src="" class="w-full h-full object-cover hidden">
+                        </div>
+                        <div class="flex-1">
+                            <input type="file" id="input-app-icon" accept="image/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100 transition-colors" onchange="handleIconUpload(event)">
+                            <button onclick="clearAppIcon()" class="text-xs text-rose-500 mt-2 hover:underline inline-block">ลบรูปไอคอน</button>
+                        </div>
+                    </div>
+                </div>
+                <div>
                     <label class="block text-sm font-medium mb-1">ชื่อแอป</label>
                     <input type="text" id="input-app-name" class="w-full px-4 py-3 rounded-xl border">
                 </div>
@@ -312,6 +325,7 @@
         const TARGET_SHEET_URL = 'https://script.google.com/macros/s/AKfycbw06F-J9-fojSUKV4MizzYze7c_1MsAVKK_m3v96sYYldFM9qFvi8ZvOCwLwrDpMoTs/exec';
         
         let isSyncing = false;
+        let tempIconBase64 = ''; // เก็บรูปชั่วคราวก่อนกดบันทึก
         window.transactions = [];
         window.wealthData = { savings: 0, assets: 0, liabilities: 0 };
         window.wealthItems = [];
@@ -624,6 +638,79 @@
         function applySettings() {
             document.documentElement.style.setProperty('--color-primary', window.settingsData.primaryColor);
             document.getElementById('display-app-name').innerText = window.settingsData.appName;
+            
+            // อัปเดตไอคอนที่ Header (มุมซ้ายบน)
+            const iconContainer = document.getElementById('app-icon-container');
+            if (window.settingsData.appIcon) {
+                iconContainer.innerHTML = `<img src="${window.settingsData.appIcon}" class="w-full h-full object-cover">`;
+                iconContainer.classList.remove('bg-opacity-10', 'text-[var(--color-primary)]');
+                iconContainer.classList.add('border-2', 'border-white/50');
+            } else {
+                iconContainer.innerHTML = `<i class="ph-fill ph-wallet text-3xl md:text-4xl" id="default-app-icon"></i>`;
+                iconContainer.classList.add('bg-opacity-10', 'text-[var(--color-primary)]');
+                iconContainer.classList.remove('border-2', 'border-white/50');
+            }
+
+            // อัปเดตไอคอนที่หน้า Login
+            const loginIconContainer = document.getElementById('login-icon-container');
+            if (loginIconContainer) {
+                if (window.settingsData.appIcon) {
+                    loginIconContainer.innerHTML = `<img src="${window.settingsData.appIcon}" class="w-full h-full object-cover">`;
+                    loginIconContainer.classList.remove('bg-pink-100', 'text-pink-500');
+                } else {
+                    loginIconContainer.innerHTML = `<i class="ph-fill ph-lock-key text-4xl"></i>`;
+                    loginIconContainer.classList.add('bg-pink-100', 'text-pink-500');
+                }
+            }
+        }
+
+        // ฟังก์ชันจัดการอัปโหลดรูปภาพและย่อขนาด
+        function handleIconUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        const MAX_WIDTH = 150; // ย่อขนาดให้เล็กเพื่อไม่ให้โหลดหนัก
+                        const MAX_HEIGHT = 150;
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > height) {
+                            if (width > MAX_WIDTH) {
+                                height *= MAX_WIDTH / width;
+                                width = MAX_WIDTH;
+                            }
+                        } else {
+                            if (height > MAX_HEIGHT) {
+                                width *= MAX_HEIGHT / height;
+                                height = MAX_HEIGHT;
+                            }
+                        }
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        tempIconBase64 = canvas.toDataURL('image/jpeg', 0.8); // บีบอัดเป็น JPG 80%
+                        document.getElementById('settings-icon-preview').src = tempIconBase64;
+                        document.getElementById('settings-icon-preview').classList.remove('hidden');
+                        document.getElementById('settings-icon-placeholder').classList.add('hidden');
+                    }
+                    img.src = e.target.result;
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        window.clearAppIcon = () => {
+            tempIconBase64 = '';
+            document.getElementById('settings-icon-preview').src = '';
+            document.getElementById('settings-icon-preview').classList.add('hidden');
+            document.getElementById('settings-icon-placeholder').classList.remove('hidden');
+            document.getElementById('input-app-icon').value = '';
         }
 
         window.openWealthModal = () => {
@@ -670,12 +757,27 @@
         window.openSettingsModal = () => {
             document.getElementById('input-app-name').value = window.settingsData.appName;
             document.getElementById('input-color').value = window.settingsData.primaryColor;
+            
+            tempIconBase64 = window.settingsData.appIcon || '';
+            if (tempIconBase64) {
+                document.getElementById('settings-icon-preview').src = tempIconBase64;
+                document.getElementById('settings-icon-preview').classList.remove('hidden');
+                document.getElementById('settings-icon-placeholder').classList.add('hidden');
+            } else {
+                document.getElementById('settings-icon-preview').src = '';
+                document.getElementById('settings-icon-preview').classList.add('hidden');
+                document.getElementById('settings-icon-placeholder').classList.remove('hidden');
+            }
+            document.getElementById('input-app-icon').value = ''; // เคลียร์ช่องเลือกไฟล์
+
             document.getElementById('settings-modal').classList.remove('hidden');
         };
         window.closeSettingsModal = () => document.getElementById('settings-modal').classList.add('hidden');
         window.saveSettingsData = () => {
             window.settingsData.appName = document.getElementById('input-app-name').value;
             window.settingsData.primaryColor = document.getElementById('input-color').value;
+            window.settingsData.appIcon = tempIconBase64;
+            
             applySettings(); exportToGoogleSheets(); closeSettingsModal(); showToast("บันทึกการตั้งค่าแล้ว", "success");
         };
 
