@@ -179,9 +179,14 @@
                         <input type="date" id="trans-date" required class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-pink-400 outline-none transition-all text-gray-700">
                     </div>
 
-                    <button type="submit" class="w-full py-4 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 hover:opacity-90 bg-[var(--color-primary)]">
-                        <i class="ph-bold ph-floppy-disk"></i> บันทึกข้อมูล
-                    </button>
+                    <div class="flex gap-2">
+                        <button type="submit" id="btn-submit-tx" class="flex-1 py-4 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 hover:opacity-90 bg-[var(--color-primary)]">
+                            <i class="ph-bold ph-floppy-disk"></i> บันทึกข้อมูล
+                        </button>
+                        <button type="button" id="btn-cancel-edit" onclick="cancelEditTransaction()" class="hidden py-4 px-4 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl font-semibold shadow-sm transition-all flex items-center justify-center">
+                            ยกเลิก
+                        </button>
+                    </div>
                 </form>
             </div>
 
@@ -326,6 +331,7 @@
         
         let isSyncing = false;
         let tempIconBase64 = ''; // เก็บรูปชั่วคราวก่อนกดบันทึก
+        let editingTxId = null; // ตัวแปรเก็บสถานะว่ากำลังแก้ไขรายการไหนอยู่
         window.transactions = [];
         window.wealthData = { savings: 0, assets: 0, liabilities: 0 };
         window.wealthItems = [];
@@ -483,23 +489,75 @@
 
         document.getElementById('transaction-form').addEventListener('submit', function(e) {
             e.preventDefault();
-            const newTx = {
-                dbId: Date.now().toString(),
+            const txData = {
                 type: document.getElementById('trans-type').value,
                 amount: parseFloat(document.getElementById('trans-amount').value),
                 categoryId: document.getElementById('trans-category').value,
                 note: document.getElementById('trans-note').value,
-                date: document.getElementById('trans-date').value,
-                createdAt: Date.now()
+                date: document.getElementById('trans-date').value
             };
             
-            window.transactions.unshift(newTx);
+            if (editingTxId) {
+                // อัปเดตข้อมูลเดิม
+                const index = window.transactions.findIndex(t => t.dbId === editingTxId);
+                if (index !== -1) {
+                    window.transactions[index] = { ...window.transactions[index], ...txData };
+                }
+                editingTxId = null;
+                document.getElementById('btn-submit-tx').innerHTML = '<i class="ph-bold ph-floppy-disk"></i> บันทึกข้อมูล';
+                document.getElementById('btn-submit-tx').style.backgroundColor = 'var(--color-primary)';
+                document.getElementById('btn-cancel-edit').classList.add('hidden');
+                showToast("แก้ไขข้อมูลสำเร็จ", "success");
+            } else {
+                // เพิ่มข้อมูลใหม่
+                txData.dbId = Date.now().toString();
+                txData.createdAt = Date.now();
+                window.transactions.unshift(txData);
+                showToast("บันทึกสำเร็จ", "success");
+            }
+            
             document.getElementById('trans-amount').value = '';
             document.getElementById('trans-note').value = '';
+            document.getElementById('trans-date').valueAsDate = new Date();
             updateUI();
             exportToGoogleSheets();
-            showToast("บันทึกสำเร็จ", "success");
         });
+
+        window.editTransaction = function(id) {
+            const tx = window.transactions.find(t => t.dbId === id);
+            if (!tx) return;
+            
+            editingTxId = id;
+            setTransactionType(tx.type);
+            document.getElementById('trans-amount').value = tx.amount;
+            
+            // รอให้ category dropdown อัปเดตก่อน set ค่า
+            setTimeout(() => {
+                document.getElementById('trans-category').value = tx.categoryId;
+            }, 10);
+            
+            document.getElementById('trans-note').value = tx.note;
+            document.getElementById('trans-date').value = tx.date;
+            
+            document.getElementById('btn-submit-tx').innerHTML = '<i class="ph-bold ph-pencil-simple"></i> อัปเดตข้อมูล';
+            document.getElementById('btn-submit-tx').style.backgroundColor = '#3b82f6'; // สีฟ้าตอนแก้ไข
+            document.getElementById('btn-cancel-edit').classList.remove('hidden');
+            
+            // เลื่อนหน้าจอกลับไปที่ฟอร์ม
+            document.getElementById('transaction-form').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        window.cancelEditTransaction = function() {
+            editingTxId = null;
+            document.getElementById('trans-amount').value = '';
+            document.getElementById('trans-note').value = '';
+            document.getElementById('trans-date').valueAsDate = new Date();
+            setTransactionType('expense');
+            
+            document.getElementById('btn-submit-tx').innerHTML = '<i class="ph-bold ph-floppy-disk"></i> บันทึกข้อมูล';
+            document.getElementById('btn-submit-tx').style.backgroundColor = 'var(--color-primary)';
+            document.getElementById('btn-cancel-edit').classList.add('hidden');
+        }
 
         window.deleteTransaction = function(id) {
             window.transactions = window.transactions.filter(t => t.dbId !== id);
@@ -548,7 +606,10 @@
                             <span class="font-bold ${isIncome ? 'text-green-500' : 'text-rose-500'}">
                                 ${isIncome ? '+' : '-'}฿${tx.amount.toLocaleString('th-TH', {minimumFractionDigits:2})}
                             </span>
-                            <button onclick="deleteTransaction('${tx.dbId}')" class="text-xs text-gray-400 hover:text-rose-500 px-2 py-1 rounded bg-gray-100 hover:bg-rose-50 transition-colors">ลบ</button>
+                            <div class="flex gap-1 mt-1">
+                                <button onclick="editTransaction('${tx.dbId}')" class="text-xs text-gray-500 hover:text-blue-500 px-2 py-1 rounded bg-gray-100 hover:bg-blue-50 transition-colors">แก้ไข</button>
+                                <button onclick="deleteTransaction('${tx.dbId}')" class="text-xs text-gray-400 hover:text-rose-500 px-2 py-1 rounded bg-gray-100 hover:bg-rose-50 transition-colors">ลบ</button>
+                            </div>
                         </div>
                     </div>
                 `;
