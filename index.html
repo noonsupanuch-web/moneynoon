@@ -11,6 +11,10 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
+    <!-- HTML2PDF & HTML2Canvas สำหรับส่งออกไฟล์ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
@@ -49,6 +53,8 @@
             from { transform: translateY(100%); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
+        /* คลาสสำหรับซ่อนปุ่มตอนพิมพ์/แคปหน้าจอ (Export) */
+        body.exporting .no-export { display: none !important; }
     </style>
 </head>
 <body class="text-gray-800 antialiased p-4 md:p-8">
@@ -93,13 +99,16 @@
                 </div>
             </div>
             <div class="flex gap-2 shrink-0">
-                <button onclick="openWealthModal()" class="w-10 h-10 md:w-12 md:h-12 bg-white hover:bg-gray-50 text-gray-700 rounded-xl shadow-sm transition-colors border border-gray-100 flex items-center justify-center">
+                <button onclick="openWealthModal()" class="w-10 h-10 md:w-12 md:h-12 bg-white hover:bg-gray-50 text-gray-700 rounded-xl shadow-sm transition-colors border border-gray-100 flex items-center justify-center no-export">
                     <i class="ph-fill ph-piggy-bank text-xl md:text-2xl"></i>
                 </button>
-                <button onclick="openSettingsModal()" class="w-10 h-10 md:w-12 md:h-12 bg-white hover:bg-gray-50 text-gray-700 rounded-xl shadow-sm transition-colors border border-gray-100 flex items-center justify-center">
+                <button onclick="openExportModal()" class="w-10 h-10 md:w-12 md:h-12 bg-white hover:bg-blue-50 text-blue-600 rounded-xl shadow-sm transition-colors border border-gray-100 flex items-center justify-center no-export">
+                    <i class="ph-bold ph-download-simple text-xl md:text-2xl"></i>
+                </button>
+                <button onclick="openSettingsModal()" class="w-10 h-10 md:w-12 md:h-12 bg-white hover:bg-gray-50 text-gray-700 rounded-xl shadow-sm transition-colors border border-gray-100 flex items-center justify-center no-export">
                     <i class="ph-fill ph-gear text-xl md:text-2xl"></i>
                 </button>
-                <button onclick="logout()" class="w-10 h-10 md:w-12 md:h-12 bg-white hover:bg-rose-50 text-rose-500 rounded-xl shadow-sm transition-colors border border-gray-100 flex items-center justify-center">
+                <button onclick="logout()" class="w-10 h-10 md:w-12 md:h-12 bg-white hover:bg-rose-50 text-rose-500 rounded-xl shadow-sm transition-colors border border-gray-100 flex items-center justify-center no-export">
                     <i class="ph-bold ph-sign-out text-xl md:text-2xl"></i>
                 </button>
             </div>
@@ -166,7 +175,12 @@
 
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่</label>
-                        <select id="trans-category" required class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-pink-400 outline-none transition-all bg-white"></select>
+                        <div class="flex gap-2">
+                            <select id="trans-category" required class="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-pink-400 outline-none transition-all bg-white"></select>
+                            <button type="button" onclick="openCategoryModal()" class="w-12 shrink-0 bg-pink-50 hover:bg-pink-100 text-pink-600 rounded-xl flex items-center justify-center transition-colors border border-pink-100 no-export" title="เพิ่มหมวดหมู่ใหม่">
+                                <i class="ph-bold ph-plus"></i>
+                            </button>
+                        </div>
                     </div>
 
                     <div>
@@ -198,7 +212,7 @@
                         <h3 class="text-xl font-bold flex items-center gap-2">
                             <i class="ph-fill ph-target text-[var(--color-primary)]"></i> เป้าหมายการเงิน
                         </h3>
-                        <button onclick="openGoalModal()" class="text-sm bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg transition-colors font-medium flex items-center gap-1 border border-gray-200 shadow-sm">
+                        <button onclick="openGoalModal()" class="text-sm bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg transition-colors font-medium flex items-center gap-1 border border-gray-200 shadow-sm no-export">
                             <i class="ph-bold ph-plus"></i> เพิ่มเป้าหมาย
                         </button>
                     </div>
@@ -211,7 +225,7 @@
                         <h3 class="text-xl font-bold flex items-center gap-2">
                             <i class="ph-fill ph-bank text-[var(--color-primary)]"></i> รายการทรัพย์สินและหนี้สิน
                         </h3>
-                        <button onclick="openWealthModal()" class="text-sm bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg transition-colors font-medium flex items-center gap-1 border border-gray-200 shadow-sm">
+                        <button onclick="openWealthModal()" class="text-sm bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg transition-colors font-medium flex items-center gap-1 border border-gray-200 shadow-sm no-export">
                             <i class="ph-bold ph-plus"></i> เพิ่มรายการ
                         </button>
                     </div>
@@ -236,10 +250,11 @@
     <div id="wealth-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl">
             <div class="flex justify-between items-center mb-6">
-                <h3 class="text-2xl font-bold text-gray-900 flex items-center gap-2"><i class="ph-fill ph-piggy-bank text-[var(--color-primary)]"></i> เพิ่มรายการฐานะการเงิน</h3>
+                <h3 class="text-2xl font-bold text-gray-900 flex items-center gap-2"><i class="ph-fill ph-piggy-bank text-[var(--color-primary)]"></i> <span id="wealth-modal-title">เพิ่มรายการฐานะการเงิน</span></h3>
                 <button onclick="closeWealthModal()" class="text-gray-400 hover:text-gray-600"><i class="ph-bold ph-x text-xl"></i></button>
             </div>
             <div class="space-y-4">
+                <input type="hidden" id="input-wealth-id">
                 <div>
                     <label class="block text-sm font-medium mb-1">ประเภท</label>
                     <select id="input-wealth-type" class="w-full px-4 py-3 rounded-xl border">
@@ -282,7 +297,7 @@
                     <label class="block text-sm font-medium mb-1">เก็บได้แล้ว (บาท)</label>
                     <input type="number" id="input-goal-current" min="0" step="0.01" class="w-full px-4 py-3 rounded-xl border">
                 </div>
-                <button onclick="saveGoalData()" class="w-full py-4 text-white rounded-xl font-bold bg-[var(--color-primary)]">บันทึก</button>
+                <button onclick="saveGoalData()" class="w-full py-4 text-white rounded-xl font-bold bg-[var(--color-primary)]">บันทึกข้อมูล</button>
             </div>
         </div>
     </div>
@@ -321,6 +336,58 @@
         </div>
     </div>
 
+    <!-- Export Modal -->
+    <div id="export-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold text-gray-900 flex items-center gap-2"><i class="ph-bold ph-download-simple text-blue-500"></i> ส่งออกข้อมูล</h3>
+                <button onclick="closeExportModal()" class="text-gray-400 hover:text-gray-600"><i class="ph-bold ph-x text-xl"></i></button>
+            </div>
+            <div class="space-y-3">
+                <button onclick="exportToCSV()" class="w-full p-4 border border-gray-200 hover:border-green-400 hover:bg-green-50 rounded-xl flex items-center gap-4 transition-all">
+                    <div class="w-10 h-10 rounded-lg bg-green-100 text-green-600 flex items-center justify-center shrink-0"><i class="ph-fill ph-file-csv text-2xl"></i></div>
+                    <div class="text-left"><h4 class="font-bold text-gray-800">ส่งออก Excel (CSV)</h4><p class="text-xs text-gray-500">บันทึกประวัติเพื่อเปิดในโปรแกรม Excel</p></div>
+                </button>
+                <button onclick="exportToPDF()" class="w-full p-4 border border-gray-200 hover:border-rose-400 hover:bg-rose-50 rounded-xl flex items-center gap-4 transition-all">
+                    <div class="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center shrink-0"><i class="ph-fill ph-file-pdf text-2xl"></i></div>
+                    <div class="text-left"><h4 class="font-bold text-gray-800">ส่งออก PDF</h4><p class="text-xs text-gray-500">บันทึกหน้าจอเป็นเอกสาร PDF</p></div>
+                </button>
+                <button onclick="exportToJPG()" class="w-full p-4 border border-gray-200 hover:border-blue-400 hover:bg-blue-50 rounded-xl flex items-center gap-4 transition-all">
+                    <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0"><i class="ph-fill ph-image text-2xl"></i></div>
+                    <div class="text-left"><h4 class="font-bold text-gray-800">ส่งออกรูปภาพ (JPG)</h4><p class="text-xs text-gray-500">แคปเจอร์รายงานเป็นรูปภาพ</p></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Modal -->
+    <div id="category-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold text-gray-900 flex items-center gap-2"><i class="ph-fill ph-tag text-[var(--color-primary)]"></i> เพิ่มหมวดหมู่ใหม่</h3>
+                <button onclick="closeCategoryModal()" class="text-gray-400 hover:text-gray-600"><i class="ph-bold ph-x text-xl"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">ประเภทรายการ</label>
+                    <select id="input-cat-type" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-pink-400 outline-none">
+                        <option value="expense">รายจ่าย</option>
+                        <option value="income">รายรับ</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">ชื่อหมวดหมู่</label>
+                    <input type="text" id="input-cat-name" placeholder="เช่น ค่าผ่อนรถ, เงินปันผล..." class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-pink-400 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">สีสัญลักษณ์</label>
+                    <input type="color" id="input-cat-color" value="#f472b6" class="h-10 w-full rounded cursor-pointer border-0 p-0">
+                </div>
+                <button onclick="saveCustomCategory()" class="w-full py-4 text-white rounded-xl font-bold bg-[var(--color-primary)] shadow-lg hover:opacity-90 transition-all">บันทึกหมวดหมู่</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div id="toast-container" class="fixed bottom-4 right-4 z-[60] flex flex-col gap-2"></div>
 
@@ -337,6 +404,7 @@
         window.wealthItems = [];
         window.goalsData = [];
         window.settingsData = { primaryColor: '#f472b6', bgImage: '', appName: 'การเงินที่ร่ำรวยของนุ่น ศุภนุช', appIcon: '' };
+        window.customCategories = { expense: [], income: [] }; // เก็บหมวดหมู่ที่สร้างเอง
 
         window.categories = {
             expense: [
@@ -402,7 +470,7 @@
 
         // --- ☁️ ระบบซิงค์ข้อมูล (Cloud Sync) ---
         function saveToLocalFallback() {
-            const payload = { transactions, wealth: wealthData, wealthItems, goals: goalsData, settings: settingsData };
+            const payload = { transactions, wealth: wealthData, wealthItems, goals: goalsData, settings: settingsData, customCategories: window.customCategories };
             localStorage.setItem('meetung_local_data', JSON.stringify(payload));
         }
 
@@ -416,6 +484,7 @@
                     window.wealthItems = parsed.wealthItems || [];
                     window.goalsData = parsed.goals || [];
                     if (parsed.settings) window.settingsData = { ...window.settingsData, ...parsed.settings };
+                    if (parsed.customCategories) window.customCategories = parsed.customCategories;
                 }
             } catch(e) {}
             applySettings();
@@ -435,6 +504,7 @@
                         if(data.wealthItems) window.wealthItems = data.wealthItems;
                         if(data.goals) window.goalsData = data.goals;
                         if(data.settings) window.settingsData = { ...window.settingsData, ...data.settings };
+                        if(data.customCategories) window.customCategories = data.customCategories;
                         saveToLocalFallback();
                         applySettings();
                         updateUI();
@@ -456,6 +526,7 @@
                 wealthItems: window.wealthItems,
                 goals: window.goalsData,
                 settings: window.settingsData,
+                customCategories: window.customCategories,
                 timestamp: Date.now().toString()
             };
             try {
@@ -484,7 +555,8 @@
                 btnExpense.className = "flex-1 py-2 rounded-lg font-medium text-sm transition-all text-gray-500 hover:text-gray-700 border border-transparent";
             }
 
-            select.innerHTML = window.categories[type].map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            const allCats = [...(window.categories[type] || []), ...(window.customCategories[type] || [])];
+            select.innerHTML = allCats.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
         }
 
         document.getElementById('transaction-form').addEventListener('submit', function(e) {
@@ -587,8 +659,8 @@
                 if (tx.type === 'income') totalIncome += tx.amount;
                 else totalExpense += tx.amount;
 
-                const catList = window.categories[tx.type] || [];
-                const cat = catList.find(c => c.id === tx.categoryId) || { name: 'อื่นๆ', icon: 'ph-circle', color: '#ccc' };
+                const catList = [...(window.categories[tx.type] || []), ...(window.customCategories[tx.type] || [])];
+                const cat = catList.find(c => c.id === tx.categoryId) || { name: 'อื่นๆ', icon: 'ph-circle', color: '#cbd5e1' };
                 const isIncome = tx.type === 'income';
 
                 listEl.innerHTML += `
@@ -606,7 +678,7 @@
                             <span class="font-bold ${isIncome ? 'text-green-500' : 'text-rose-500'}">
                                 ${isIncome ? '+' : '-'}฿${tx.amount.toLocaleString('th-TH', {minimumFractionDigits:2})}
                             </span>
-                            <div class="flex gap-1 mt-1">
+                            <div class="flex gap-1 mt-1 no-export">
                                 <button onclick="editTransaction('${tx.dbId}')" class="text-xs text-gray-500 hover:text-blue-500 px-2 py-1 rounded bg-gray-100 hover:bg-blue-50 transition-colors">แก้ไข</button>
                                 <button onclick="deleteTransaction('${tx.dbId}')" class="text-xs text-gray-400 hover:text-rose-500 px-2 py-1 rounded bg-gray-100 hover:bg-rose-50 transition-colors">ลบ</button>
                             </div>
@@ -635,8 +707,9 @@
                             ${window.wealthItems.filter(i=>i.type==='savings').map(i=>`
                                 <div class="flex justify-between items-center text-sm bg-white/50 p-3 rounded-xl border border-gray-100 shadow-sm">
                                     <span class="font-medium text-gray-700 break-words w-1/2">${i.name}</span>
-                                    <div class="flex items-center gap-3">
-                                        <span class="font-bold text-blue-600">฿${i.amount.toLocaleString()}</span>
+                                    <div class="flex items-center gap-1">
+                                        <span class="font-bold text-blue-600 mr-2">฿${i.amount.toLocaleString()}</span>
+                                        <button onclick="editWealthItem('${i.id}')" class="text-blue-500 hover:bg-blue-50 p-1.5 rounded-lg transition-colors"><i class="ph-bold ph-pencil-simple"></i></button>
                                         <button onclick="deleteWealthItem('${i.id}')" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"><i class="ph-bold ph-trash"></i></button>
                                     </div>
                                 </div>
@@ -649,8 +722,9 @@
                             ${window.wealthItems.filter(i=>i.type==='assets').map(i=>`
                                 <div class="flex justify-between items-center text-sm bg-white/50 p-3 rounded-xl border border-gray-100 shadow-sm">
                                     <span class="font-medium text-gray-700 break-words w-1/2">${i.name}</span>
-                                    <div class="flex items-center gap-3">
-                                        <span class="font-bold text-emerald-600">฿${i.amount.toLocaleString()}</span>
+                                    <div class="flex items-center gap-1">
+                                        <span class="font-bold text-emerald-600 mr-2">฿${i.amount.toLocaleString()}</span>
+                                        <button onclick="editWealthItem('${i.id}')" class="text-blue-500 hover:bg-blue-50 p-1.5 rounded-lg transition-colors"><i class="ph-bold ph-pencil-simple"></i></button>
                                         <button onclick="deleteWealthItem('${i.id}')" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"><i class="ph-bold ph-trash"></i></button>
                                     </div>
                                 </div>
@@ -663,8 +737,9 @@
                             ${window.wealthItems.filter(i=>i.type==='liabilities').map(i=>`
                                 <div class="flex justify-between items-center text-sm bg-white/50 p-3 rounded-xl border border-gray-100 shadow-sm">
                                     <span class="font-medium text-gray-700 break-words w-1/2">${i.name}</span>
-                                    <div class="flex items-center gap-3">
-                                        <span class="font-bold text-rose-500">฿${i.amount.toLocaleString()}</span>
+                                    <div class="flex items-center gap-1">
+                                        <span class="font-bold text-rose-500 mr-2">฿${i.amount.toLocaleString()}</span>
+                                        <button onclick="editWealthItem('${i.id}')" class="text-blue-500 hover:bg-blue-50 p-1.5 rounded-lg transition-colors"><i class="ph-bold ph-pencil-simple"></i></button>
                                         <button onclick="deleteWealthItem('${i.id}')" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"><i class="ph-bold ph-trash"></i></button>
                                     </div>
                                 </div>
@@ -681,8 +756,11 @@
                 const percent = Math.min(100, Math.round((g.current / g.target) * 100));
                 goalsList.innerHTML += `
                     <div class="bg-white/80 p-4 rounded-2xl border border-gray-100 relative">
-                        <button onclick="deleteGoal('${g.id}')" class="absolute top-3 right-3 text-gray-400 hover:text-rose-500"><i class="ph-bold ph-trash"></i></button>
-                        <h4 class="font-bold text-gray-800 mb-1 pr-6">${g.name}</h4>
+                        <div class="absolute top-3 right-3 flex gap-1">
+                            <button onclick="editGoal('${g.id}')" class="text-gray-400 hover:text-blue-500 p-1"><i class="ph-bold ph-pencil-simple"></i></button>
+                            <button onclick="deleteGoal('${g.id}')" class="text-gray-400 hover:text-rose-500 p-1"><i class="ph-bold ph-trash"></i></button>
+                        </div>
+                        <h4 class="font-bold text-gray-800 mb-1 pr-12">${g.name}</h4>
                         <div class="flex justify-between text-xs text-gray-500 mb-2">
                             <span>฿${g.current.toLocaleString()} / ฿${g.target.toLocaleString()}</span>
                             <span class="font-bold text-[var(--color-primary)]">${percent}%</span>
@@ -775,20 +853,40 @@
         }
 
         window.openWealthModal = () => {
+            document.getElementById('input-wealth-id').value = '';
+            document.getElementById('wealth-modal-title').innerText = 'เพิ่มรายการฐานะการเงิน';
             document.getElementById('input-wealth-type').value = 'savings';
             document.getElementById('input-wealth-name').value = '';
             document.getElementById('input-wealth-amount').value = '';
             document.getElementById('wealth-modal').classList.remove('hidden');
         };
+        window.editWealthItem = (id) => {
+            const item = window.wealthItems.find(i => i.id === id);
+            if (!item) return;
+            document.getElementById('input-wealth-id').value = item.id;
+            document.getElementById('wealth-modal-title').innerText = 'แก้ไขรายการฐานะการเงิน';
+            document.getElementById('input-wealth-type').value = item.type;
+            document.getElementById('input-wealth-name').value = item.name;
+            document.getElementById('input-wealth-amount').value = item.amount;
+            document.getElementById('wealth-modal').classList.remove('hidden');
+        };
         window.closeWealthModal = () => document.getElementById('wealth-modal').classList.add('hidden');
         window.saveWealthItem = () => {
+            const id = document.getElementById('input-wealth-id').value;
             const type = document.getElementById('input-wealth-type').value;
             const name = document.getElementById('input-wealth-name').value;
             const amount = parseFloat(document.getElementById('input-wealth-amount').value) || 0;
             if (!name || amount <= 0) return showToast("กรุณากรอกข้อมูลให้ครบถ้วน", "error");
             
-            window.wealthItems.push({ id: Date.now().toString(), type, name, amount });
-            updateUI(); exportToGoogleSheets(); closeWealthModal(); showToast("เพิ่มรายการสำเร็จ", "success");
+            if (id) {
+                const index = window.wealthItems.findIndex(i => i.id === id);
+                if(index !== -1) window.wealthItems[index] = { id, type, name, amount };
+                showToast("อัปเดตรายการสำเร็จ", "success");
+            } else {
+                window.wealthItems.push({ id: Date.now().toString(), type, name, amount });
+                showToast("เพิ่มรายการสำเร็จ", "success");
+            }
+            updateUI(); exportToGoogleSheets(); closeWealthModal(); 
         };
         window.deleteWealthItem = (id) => {
             window.wealthItems = window.wealthItems.filter(i => i.id !== id);
@@ -796,23 +894,41 @@
         };
 
         window.openGoalModal = () => {
-            document.getElementById('input-goal-id').value = Date.now().toString();
+            document.getElementById('input-goal-id').value = '';
             document.getElementById('input-goal-name').value = '';
             document.getElementById('input-goal-target').value = '';
             document.getElementById('input-goal-current').value = '';
             document.getElementById('goal-modal').classList.remove('hidden');
         };
+        window.editGoal = (id) => {
+            const goal = window.goalsData.find(g => g.id === id);
+            if (!goal) return;
+            document.getElementById('input-goal-id').value = goal.id;
+            document.getElementById('input-goal-name').value = goal.name;
+            document.getElementById('input-goal-target').value = goal.target;
+            document.getElementById('input-goal-current').value = goal.current;
+            document.getElementById('goal-modal').classList.remove('hidden');
+        };
         window.closeGoalModal = () => document.getElementById('goal-modal').classList.add('hidden');
         window.saveGoalData = () => {
+            const id = document.getElementById('input-goal-id').value;
             const newGoal = {
-                id: document.getElementById('input-goal-id').value,
+                id: id || Date.now().toString(),
                 name: document.getElementById('input-goal-name').value,
                 target: parseFloat(document.getElementById('input-goal-target').value) || 0,
                 current: parseFloat(document.getElementById('input-goal-current').value) || 0
             };
             if (!newGoal.name || newGoal.target <= 0) return showToast("กรุณากรอกข้อมูลเป้าหมายให้ครบ", "error");
-            window.goalsData.push(newGoal);
-            updateUI(); exportToGoogleSheets(); closeGoalModal(); showToast("เพิ่มเป้าหมายแล้ว", "success");
+            
+            if (id) {
+                const index = window.goalsData.findIndex(g => g.id === id);
+                if(index !== -1) window.goalsData[index] = newGoal;
+                showToast("อัปเดตเป้าหมายแล้ว", "success");
+            } else {
+                window.goalsData.push(newGoal);
+                showToast("เพิ่มเป้าหมายแล้ว", "success");
+            }
+            updateUI(); exportToGoogleSheets(); closeGoalModal(); 
         };
 
         window.openSettingsModal = () => {
@@ -840,6 +956,102 @@
             window.settingsData.appIcon = tempIconBase64;
             
             applySettings(); exportToGoogleSheets(); closeSettingsModal(); showToast("บันทึกการตั้งค่าแล้ว", "success");
+        };
+
+        // --- ➕ จัดการหมวดหมู่ (Custom Categories) ---
+        window.openCategoryModal = () => {
+            document.getElementById('input-cat-name').value = '';
+            document.getElementById('input-cat-color').value = '#f472b6';
+            document.getElementById('category-modal').classList.remove('hidden');
+        };
+        window.closeCategoryModal = () => document.getElementById('category-modal').classList.add('hidden');
+        window.saveCustomCategory = () => {
+            const type = document.getElementById('input-cat-type').value;
+            const name = document.getElementById('input-cat-name').value;
+            const color = document.getElementById('input-cat-color').value;
+            
+            if (!name) return showToast("กรุณาตั้งชื่อหมวดหมู่", "error");
+            
+            const newCat = {
+                id: 'custom_' + Date.now(),
+                name: name,
+                icon: 'ph-tag', // ไอคอนตั้งต้นสำหรับหมวดหมู่ใหม่
+                color: color
+            };
+            
+            window.customCategories[type].push(newCat);
+            setTransactionType(document.getElementById('trans-type').value); // รีเฟรชตัวเลือกหมวดหมู่
+            exportToGoogleSheets();
+            closeCategoryModal();
+            showToast("เพิ่มหมวดหมู่ใหม่สำเร็จ", "success");
+        };
+
+        // --- 📥 ส่งออกข้อมูล (Export System) ---
+        window.openExportModal = () => document.getElementById('export-modal').classList.remove('hidden');
+        window.closeExportModal = () => document.getElementById('export-modal').classList.add('hidden');
+
+        window.exportToCSV = () => {
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+            csvContent += "วันที่,ประเภท,หมวดหมู่,จำนวนเงิน,รายละเอียด\n";
+            window.transactions.forEach(tx => {
+                const catList = [...(window.categories[tx.type] || []), ...(window.customCategories[tx.type] || [])];
+                const cat = catList.find(c => c.id === tx.categoryId) || { name: 'อื่นๆ' };
+                const typeStr = tx.type === 'income' ? 'รายรับ' : 'รายจ่าย';
+                csvContent += `${tx.date},${typeStr},${cat.name},${tx.amount},${tx.note}\n`;
+            });
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "MeeTung_Transactions.csv");
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            showToast("ดาวน์โหลดไฟล์ Excel (CSV) สำเร็จ", "success");
+            closeExportModal();
+        };
+
+        window.exportToPDF = () => {
+            closeExportModal();
+            showToast("กำลังประมวลผล PDF...", "success");
+            
+            // ซ่อนปุ่มต่างๆ ชั่วคราวเพื่อไม่ให้ติดไปในรายงาน
+            document.body.classList.add('exporting');
+            const element = document.getElementById('app-content');
+            
+            const opt = {
+                margin:       0.2,
+                filename:     'MeeTung_Report.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, windowWidth: 1200 },
+                jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+            
+            setTimeout(() => {
+                html2pdf().set(opt).from(element).save().then(() => {
+                    document.body.classList.remove('exporting');
+                    showToast("ดาวน์โหลด PDF สำเร็จ", "success");
+                });
+            }, 500); // รอให้ UI อัปเดตการซ่อนปุ่ม
+        };
+
+        window.exportToJPG = () => {
+            closeExportModal();
+            showToast("กำลังประมวลผลรูปภาพ...", "success");
+            
+            document.body.classList.add('exporting');
+            const element = document.getElementById('app-content');
+            
+            setTimeout(() => {
+                html2canvas(element, { scale: 2, useCORS: true, windowWidth: 1200 }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = 'MeeTung_Report.jpg';
+                    link.href = canvas.toDataURL('image/jpeg', 0.9);
+                    link.click();
+                    document.body.classList.remove('exporting');
+                    showToast("ดาวน์โหลดรูปภาพ JPG สำเร็จ", "success");
+                });
+            }, 500);
         };
 
         function showToast(message, type = 'success') {
